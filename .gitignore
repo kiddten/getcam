@@ -3,3 +3,4 @@ settings.yaml
 cam.log
 __pycache__
 *.log
+imgs
