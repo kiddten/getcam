@@ -1,0 +1,5 @@
+settings.yaml
+.idea
+cam.log
+__pycache__
+*.log
