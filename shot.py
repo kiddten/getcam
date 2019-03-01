@@ -21,8 +21,8 @@ def convert_gray_to_rgb(path):
     logger.info('Converting f{path} to RGB')
     image = Image.open(path)
     rgb_image = Image.new('RGB', image.size)
-    rgb_image.paste(img)
-    rgb_image.save(path, format=img.format)
+    rgb_image.paste(image)
+    rgb_image.save(path, format=image.format)
 
 
 def check_sequence_for_gray_images(sequence):
@@ -31,14 +31,15 @@ def check_sequence_for_gray_images(sequence):
         image = imageio.imread(item)
         if len(image.shape) < 3:
             convert_gray_to_rgb(item)
+    return sequence
 
 
 @logger.catch()
 def make_movie(path, day):
     logger.info(f'Running make movie for {path}:{day}')
     os.makedirs(conf.clips_folder, exist_ok=True)
-    check_sequence_for_gray_images(path)
-    clip = ImageSequenceClip(sequence=path, fps=25)
+    sequence = check_sequence_for_gray_images(path)
+    clip = ImageSequenceClip(sequence, fps=25)
     name = f'{conf.clips_folder}/{day}.mp4'
     clip.write_videofile(name, audio=False)
     return name
