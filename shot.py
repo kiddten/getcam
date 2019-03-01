@@ -3,7 +3,9 @@ import datetime
 import logging
 import os
 
-from aiotg import Bot, Chat
+import imageio
+from PIL import Image
+from aiotg import Bot
 from loguru import logger
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
@@ -15,10 +17,27 @@ logging.basicConfig(level=logging.DEBUG)
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
 
+def convert_gray_to_rgb(path):
+    logger.info('Converting f{path} to RGB')
+    image = Image.open(path)
+    rgb_image = Image.new('RGB', image.size)
+    rgb_image.paste(img)
+    rgb_image.save(path, format=img.format)
+
+
+def check_sequence_for_gray_images(sequence):
+    sequence = sorted([os.path.join(sequence, f) for f in os.listdir(sequence)])
+    for item in sequence:
+        image = imageio.imread(item)
+        if len(image.shape) < 3:
+            convert_gray_to_rgb(item)
+
+
 @logger.catch()
 def make_movie(path, day):
     logger.info(f'Running make movie for {path}:{day}')
     os.makedirs(conf.clips_folder, exist_ok=True)
+    check_sequence_for_gray_images(path)
     clip = ImageSequenceClip(sequence=path, fps=25)
     name = f'{conf.clips_folder}/{day}.mp4'
     clip.write_videofile(name, audio=False)
