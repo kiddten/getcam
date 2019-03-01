@@ -2,3 +2,5 @@ cam_url:
 data_folder:
 clips_folder:
 interval:
+bot_token:
+tele_proxy:

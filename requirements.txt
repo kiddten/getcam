@@ -2,3 +2,4 @@ requests==2.21.0
 loguru==0.2.5
 moviepy
 pyyaml
+aiotg
