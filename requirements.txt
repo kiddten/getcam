@@ -3,3 +3,4 @@ loguru==0.2.5
 moviepy
 pyyaml
 aiotg
+apscheduler

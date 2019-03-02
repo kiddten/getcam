@@ -6,6 +6,7 @@ import os
 import imageio
 from PIL import Image
 from aiotg import Bot
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
@@ -18,7 +19,7 @@ bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
 
 def convert_gray_to_rgb(path):
-    logger.info('Converting f{path} to RGB')
+    logger.info(f'Converting {path} to RGB')
     image = Image.open(path)
     rgb_image = Image.new('RGB', image.size)
     rgb_image.paste(image)
@@ -49,11 +50,6 @@ def make_movie(path, day):
 async def get_img():
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     path = f'{conf.data_folder}/{today}'
-    loop = asyncio.get_event_loop()
-    _today = loop.TODAY
-    if today != _today:
-        loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{_today}', f'{_today}')
-        loop.TODAY = _today
     os.makedirs(path, exist_ok=True)
     now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
     async with bot.session.get(conf.cam_url) as response:
@@ -73,7 +69,7 @@ async def periodic_get_img():
 
 
 @bot.command('/today')
-async def today_img(chat, match):
+async def today_movie(chat, match):
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
     clip = await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{today}', f'{today}')
@@ -82,7 +78,7 @@ async def today_img(chat, match):
 
 
 @bot.command('/yesterday')
-async def today_img(chat, match):
+async def yesterday_movie(chat, match):
     day = datetime.datetime.now() - datetime.timedelta(days=1)
     day = day.strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
@@ -98,7 +94,17 @@ async def img(chat, match):
         await chat.send_photo(image)
 
 
+async def daily_movie():
+    day = datetime.datetime.now() - datetime.timedelta(days=1)
+    day = day.strftime('%d_%m_%Y')
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{day}', f'{day}')
+
+
 async def main():
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(daily_movie, 'cron', hour=0, minute=1)
+    scheduler.start()
     loop = asyncio.get_event_loop()
     loop.TODAY = datetime.datetime.now().strftime('%d_%m_%Y')
     pe = asyncio.create_task(periodic_get_img())
