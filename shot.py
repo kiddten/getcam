@@ -8,6 +8,8 @@ from PIL import Image
 from aiotg import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
+from moviepy.video.VideoClip import ImageClip, TextClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
 import conf
@@ -16,6 +18,16 @@ LOG_FILE = 'cam.log'
 logger.add(LOG_FILE)
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
+
+
+def add_timestamp(path):
+    logger.debug(f'Adding timestamp to {path}')
+    label = path.split('/')[-1].split('.')[0].replace('_', '.')
+    txt = TextClip(txt=label, fontsize=20, color="red", font='Ubuntu-Bold', transparent=True)
+    txt = txt.set_position(('right', 'top'))
+    clip = ImageClip(path, duration=0.1)
+    clip = CompositeVideoClip([clip, txt])
+    return clip.get_frame(0)
 
 
 def convert_gray_to_rgb(path):
@@ -40,7 +52,10 @@ def make_movie(path, day):
     logger.info(f'Running make movie for {path}:{day}')
     os.makedirs(conf.clips_folder, exist_ok=True)
     sequence = check_sequence_for_gray_images(path)
-    clip = ImageSequenceClip(sequence, fps=25)
+    raw_sequence = []
+    for item in sequence:
+        raw_sequence.append(add_timestamp(item))
+    clip = ImageSequenceClip(raw_sequence, fps=25)
     name = f'{conf.clips_folder}/{day}.mp4'
     clip.write_videofile(name, audio=False)
     return name
@@ -105,8 +120,6 @@ async def main():
     scheduler = AsyncIOScheduler()
     scheduler.add_job(daily_movie, 'cron', hour=0, minute=1)
     scheduler.start()
-    loop = asyncio.get_event_loop()
-    loop.TODAY = datetime.datetime.now().strftime('%d_%m_%Y')
     pe = asyncio.create_task(periodic_get_img())
     bot_loop = asyncio.create_task(bot.loop())
     await asyncio.wait([pe, bot_loop])
