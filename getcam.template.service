@@ -1,0 +1,14 @@
+[Unit]
+Description=Getcam as service
+[Service]
+ExecStart=path to shot entrypoint within virtualenv
+User=user
+[Install]
+WantedBy=multi-user.target
+
+# copy that file to /usr/lib/systemd/system/getcam.service
+# systemctl start mymonitoring
+# systemctl status mymonitoring
+# systemctl stop mymonitoring
+# systemctl restart mymonitoring
+# sudo journalctl -u getcam

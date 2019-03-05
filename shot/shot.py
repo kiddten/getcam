@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import datetime
 import logging
 import os
@@ -8,26 +9,24 @@ from PIL import Image
 from aiotg import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
-from moviepy.video.VideoClip import ImageClip, TextClip
+from moviepy.video.VideoClip import TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
-import conf
+import shot.conf as conf
 
-LOG_FILE = 'cam.log'
-logger.add(LOG_FILE)
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        logger_opt = logger.opt(raw=True)
+        logger_opt.log(record.levelno, record.getMessage())
+
+
+logging.getLogger(None).addHandler(InterceptHandler())
+
+logger.add(conf.log_file)
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
-
-
-def add_timestamp(path):
-    logger.debug(f'Adding timestamp to {path}')
-    label = path.split('/')[-1].split('.')[0].replace('_', '.')
-    txt = TextClip(txt=label, fontsize=20, color="red", font='Ubuntu-Bold', transparent=True)
-    txt = txt.set_position(('right', 'top'))
-    clip = ImageClip(path, duration=0.1)
-    clip = CompositeVideoClip([clip, txt])
-    return clip.get_frame(0)
 
 
 def convert_gray_to_rgb(path):
@@ -39,6 +38,7 @@ def convert_gray_to_rgb(path):
 
 
 def check_sequence_for_gray_images(sequence):
+    logger.debug('Checking sequence for gray images')
     sequence = sorted([os.path.join(sequence, f) for f in os.listdir(sequence)])
     for item in sequence:
         image = imageio.imread(item)
@@ -47,15 +47,30 @@ def check_sequence_for_gray_images(sequence):
     return sequence
 
 
+def ts_clip(path):
+    logger.debug(f'Adding timestamp to {path}')
+    label = path.split('/')[-1].split('.')[0].replace('_', '.')
+    txt = TextClip(txt=label, fontsize=20, color="red", font='Ubuntu-Bold', transparent=True)
+    return txt.get_frame(0)
+
+
+def make_txt_movie(sequence):
+    logger.debug('Creating txt movie..')
+    executor = concurrent.futures.ThreadPoolExecutor()
+    txt_clip = []
+    for item in executor.map(ts_clip, sequence):
+        txt_clip.append(item)
+    return ImageSequenceClip(txt_clip, fps=25)
+
+
 @logger.catch()
 def make_movie(path, day):
     logger.info(f'Running make movie for {path}:{day}')
     os.makedirs(conf.clips_folder, exist_ok=True)
     sequence = check_sequence_for_gray_images(path)
-    raw_sequence = []
-    for item in sequence:
-        raw_sequence.append(add_timestamp(item))
-    clip = ImageSequenceClip(raw_sequence, fps=25)
+    txt_clip = make_txt_movie(sequence)
+    image_clip = ImageSequenceClip(sequence, fps=25)
+    clip = CompositeVideoClip([image_clip, txt_clip.set_pos(('right', 'top'))], use_bgclip=True)
     name = f'{conf.clips_folder}/{day}.mp4'
     clip.write_videofile(name, audio=False)
     return name
@@ -102,6 +117,15 @@ async def yesterday_movie(chat, match):
         await chat.send_video(clip)
 
 
+@bot.command(r'/mov (.+)')
+async def mov(chat, match):
+    day = match.group(1)
+    loop = asyncio.get_event_loop()
+    clip = await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{day}', f'{day}')
+    with open(clip, 'rb') as clip:
+        await chat.send_video(clip)
+
+
 @bot.command('/img')
 async def img(chat, match):
     image = await get_img()
@@ -120,10 +144,15 @@ async def main():
     scheduler = AsyncIOScheduler()
     scheduler.add_job(daily_movie, 'cron', hour=0, minute=1)
     scheduler.start()
+
     pe = asyncio.create_task(periodic_get_img())
     bot_loop = asyncio.create_task(bot.loop())
     await asyncio.wait([pe, bot_loop])
 
 
-if __name__ == '__main__':
+def run():
     asyncio.run(main())
+
+
+if __name__ == '__main__':
+    run()
