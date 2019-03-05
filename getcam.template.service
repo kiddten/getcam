@@ -11,4 +11,5 @@ WantedBy=multi-user.target
 # systemctl status mymonitoring
 # systemctl stop mymonitoring
 # systemctl restart mymonitoring
+# systemctl daemon-reload
 # sudo journalctl -u getcam

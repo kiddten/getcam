@@ -11,3 +11,10 @@ https://fonts.google.com/specimen/Ubuntu
 `fc-cache -f -v`
 
 `fc-list | grep Ubuntu # to check`
+
+### virtualenv
+```
+python -m venv ./.venv/getcam
+pip intall -r requirements.txt
+pip install -e ../getcam/
+``` 
