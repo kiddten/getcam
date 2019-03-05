@@ -1,4 +1,4 @@
-###ImageMagick
+### ImageMagick
 
 Install and take care about right permissions in `/etc/ImageMagick-ver/policy.xml`
 
