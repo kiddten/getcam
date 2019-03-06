@@ -19,9 +19,9 @@ class Cam:
 @dataclass
 class Conf:
     bot_token: str
-    tele_proxy: str
     log_file: str
     cameras: Dict[str, Cam]
+    tele_proxy: str = ''
 
     def __post_init__(self):
         self.cameras_dict = self.cameras
