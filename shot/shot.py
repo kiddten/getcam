@@ -3,6 +3,7 @@ import concurrent
 import datetime
 import logging
 import os
+from pathlib import Path
 
 import imageio
 from PIL import Image
@@ -13,7 +14,9 @@ from moviepy.video.VideoClip import TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
-import shot.conf as conf
+from shot.conf import Cam, read
+
+conf = read()
 
 
 class InterceptHandler(logging.Handler):
@@ -24,7 +27,7 @@ class InterceptHandler(logging.Handler):
 
 logging.getLogger(None).addHandler(InterceptHandler())
 
-logger.add(conf.log_file)
+logger.add(Path(conf.root_dir) / conf.log_file)
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
@@ -64,45 +67,74 @@ def make_txt_movie(sequence):
 
 
 @logger.catch()
-def make_movie(path, day):
+def make_movie(cam: Cam, day, regular=True):
+    regular = 'regular' if regular else ''
+    root = Path(conf.root_dir) / 'data' / cam.name
+    path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
-    os.makedirs(conf.clips_folder, exist_ok=True)
-    sequence = check_sequence_for_gray_images(path)
+    sequence = check_sequence_for_gray_images(str(path))
     txt_clip = make_txt_movie(sequence)
     image_clip = ImageSequenceClip(sequence, fps=25)
     clip = CompositeVideoClip([image_clip, txt_clip.set_pos(('right', 'top'))], use_bgclip=True)
-    name = f'{conf.clips_folder}/{day}.mp4'
-    clip.write_videofile(name, audio=False)
-    return name
+    movie_path = root / regular / 'clips' / f'{day}.mp4'
+    movie_path.parent.mkdir(parents=True, exist_ok=True)
+    movie_path = str(movie_path)
+    clip.write_videofile(movie_path, audio=False)
+    return movie_path
 
 
 @logger.catch()
-async def get_img():
+async def get_img(cam: Cam, regular=True):
+    regular = 'regular' if regular else ''
     today = datetime.datetime.now().strftime('%d_%m_%Y')
-    path = f'{conf.data_folder}/{today}'
-    os.makedirs(path, exist_ok=True)
+    path = Path(conf.root_dir) / 'data' / cam.name
+    path = path / regular / 'imgs' / today
+    path.mkdir(parents=True, exist_ok=True)
     now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
-    async with bot.session.get(conf.cam_url) as response:
+    logger.info(f'Attempt to get img {now}')
+    async with bot.session.get(cam.url) as response:
         if response.status == 200:
             data = await response.read()
-            name = f'{path}/{now}.jpg'
+            name = path / f'{now}.jpg'
             with open(name, 'wb') as f:
                 f.write(data)
     logger.info(f'Finished with {now}')
-    return name
+    return str(name)
 
 
-async def periodic_get_img():
+async def periodic_get_img(cam: Cam):
     while True:
-        await get_img()
-        await asyncio.sleep(conf.interval)
+        await get_img(cam)
+        await asyncio.sleep(cam.interval)
 
 
-@bot.command('/today')
+async def get_cam(name, chat):
+    if name not in conf.cameras_dict:
+        await chat.send_text('Wrong cam name!')
+        return
+    return conf.cameras_dict[name]
+
+
+@bot.command('/today (.+)')
 async def today_movie(chat, match):
+    cam = await get_cam(match.group(1), chat)
+    if not cam:
+        return
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
-    clip = await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{today}', f'{today}')
+    clip = await loop.run_in_executor(None, make_movie, cam, today, False)
+    with open(clip, 'rb') as clip:
+        await chat.send_video(clip)
+
+
+@bot.command('/regular (.+)')
+async def today_movie(chat, match):
+    cam = await get_cam(match.group(1), chat)
+    if not cam:
+        return
+    day = datetime.datetime.now() - datetime.timedelta(days=1)
+    day = day.strftime('%d_%m_%Y')
+    clip = Path(conf.root_dir) / 'data' / cam.name / 'regular' / 'clips' / f'{day}.mp4'
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
@@ -126,28 +158,32 @@ async def mov(chat, match):
         await chat.send_video(clip)
 
 
-@bot.command('/img')
+@bot.command('/img (.+)')
 async def img(chat, match):
-    image = await get_img()
+    cam = await get_cam(match.group(1), chat)
+    if not cam:
+        return
+    image = await get_img(cam, regular=False)
     with open(image, 'rb') as image:
         await chat.send_photo(image)
 
 
-async def daily_movie():
+async def daily_movie(cam: Cam):
     day = datetime.datetime.now() - datetime.timedelta(days=1)
     day = day.strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{day}', f'{day}')
+    await loop.run_in_executor(None, make_movie, cam, day)
 
 
 async def main():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(daily_movie, 'cron', hour=0, minute=1)
+    for cam in conf.cameras:
+        scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
     scheduler.start()
 
-    pe = asyncio.create_task(periodic_get_img())
+    periodic_tasks = [asyncio.create_task(periodic_get_img(cam)) for cam in conf.cameras]
     bot_loop = asyncio.create_task(bot.loop())
-    await asyncio.wait([pe, bot_loop])
+    await asyncio.wait([*periodic_tasks, bot_loop])
 
 
 def run():
