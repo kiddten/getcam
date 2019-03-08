@@ -21,6 +21,7 @@ class Conf:
     bot_token: str
     log_file: str
     cameras: Dict[str, Cam]
+    debug: bool
     tele_proxy: str = ''
 
     def __post_init__(self):
