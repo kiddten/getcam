@@ -30,12 +30,6 @@ logging.basicConfig(level=logging.DEBUG)
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
 
-async def periodic_get_img(cam: Cam):
-    while True:
-        await get_img(cam, bot.session)
-        await asyncio.sleep(cam.interval)
-
-
 async def get_cam(name, chat):
     if name not in conf.cameras_dict:
         await chat.send_text('Wrong cam name!')
@@ -215,16 +209,18 @@ async def unhandled_callbacks(chat, cq):
 
 async def main():
     scheduler = AsyncIOScheduler()
-    for cam in conf.cameras:
-        scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
     scheduler.start()
+    for cam in conf.cameras:
+        scheduler.add_job(get_img, args=(cam, bot.session))
+        scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
+        scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
 
-    periodic_tasks = [asyncio.create_task(periodic_get_img(cam)) for cam in conf.cameras]
     bot_loop = asyncio.create_task(bot.loop())
-    await asyncio.wait([*periodic_tasks, bot_loop])
+    await asyncio.wait([bot_loop])
 
 
 def run():
+    logger.info('Running getcam service')
     asyncio.run(main())
 
 

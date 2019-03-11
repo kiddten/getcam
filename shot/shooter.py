@@ -69,20 +69,20 @@ def make_movie(cam: Cam, day, regular=True):
     return movie_path
 
 
-@logger.catch()
 async def get_img(cam: Cam, session, regular=True):
+    logger.info(f'Img handler: {cam.name}')
     regular = 'regular' if regular else ''
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     path = Path(conf.root_dir) / 'data' / cam.name
     path = path / regular / 'imgs' / today
     path.mkdir(parents=True, exist_ok=True)
     now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
-    logger.info(f'Attempt to get img {now}')
+    name = path / f'{now}.jpg'
+    logger.info(f'Attempt to get img {name}')
     async with session.get(cam.url) as response:
         if response.status == 200:
             data = await response.read()
-            name = path / f'{now}.jpg'
             with open(name, 'wb') as f:
                 f.write(data)
-    logger.info(f'Finished with {now}')
+    logger.info(f'Finished with {name}')
     return str(name)
