@@ -12,6 +12,8 @@ class Cam:
     url: str
     interval: int
     offset: int
+    update_channel: bool
+    fps: int
     name: Optional[str] = ''
 
 
@@ -22,6 +24,7 @@ class Conf:
     log_file: str
     cameras: Dict[str, Cam]
     debug: bool
+    db_uri: str
     tele_proxy: str = ''
 
     def __post_init__(self):

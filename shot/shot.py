@@ -5,12 +5,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
 
-from aiotg import Bot
+from aiotg import Bot, Chat
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dataclasses_json import dataclass_json
 from loguru import logger
 
 from shot.conf import Cam, read
+from shot.model import Admin, Channel, db
+from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import get_img, make_movie
 
 conf = read()
@@ -47,20 +49,53 @@ async def yesterday_movie(chat, match):
         await chat.send_video(clip)
 
 
-@bot.command(r'/mov (.+)')
+@bot.command(r'/mov (.+) (.+)')
 async def mov(chat, match):
+    cam = await get_cam(match.group(2), chat)
+    if not cam:
+        return
     day = match.group(1)
     loop = asyncio.get_event_loop()
-    clip = await loop.run_in_executor(None, make_movie, f'{conf.data_folder}/{day}', f'{day}')
+    clip = await loop.run_in_executor(None, make_movie, cam, day)
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
 
+@ThreadSwitcherWithDB.optimized
 async def daily_movie(cam: Cam):
     day = datetime.datetime.now() - datetime.timedelta(days=1)
     day = day.strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, make_movie, cam, day)
+    try:
+        path = await loop.run_in_executor(None, make_movie, cam, day)
+    except FileNotFoundError as exc:
+        logger.exception(exc)
+        await notify_admins(f'File {exc.filename} not found for daily movie {cam.name}: {day}')
+        return
+    except Exception as exc:
+        logger.exception(exc)
+        await notify_admins(f'Error during making daily movie for {cam.name}: {day}')
+        return
+    if cam.update_channel:
+        async with db_in_thread():
+            channels = db.query(Channel).all()
+        with open(path, 'rb') as clip:
+            for channel in channels:
+                await Chat(bot, channel.chat_id).send_video(clip)
+
+
+async def regular_handler(chat, cam_name):
+    cam = await get_cam(cam_name, chat)
+    if not cam:
+        return
+    day = datetime.datetime.now() - datetime.timedelta(days=1)
+    day = day.strftime('%d_%m_%Y')
+    clip = Path(conf.root_dir) / 'data' / cam.name / 'regular' / 'clips' / f'{day}.mp4'
+    if not clip.exists():
+        await chat.send_text(f'Can not find regular clip for {day}!')
+        return
+    with open(clip, 'rb') as clip:
+        await chat.send_video(clip)
 
 
 @dataclass_json
@@ -196,7 +231,7 @@ async def today_handler(chat, cam_name):
         return
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
-    clip = await loop.run_in_executor(None, make_movie, cam, today, False)
+    clip = await loop.run_in_executor(None, lambda: make_movie(cam, today, regular=False))
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
@@ -205,6 +240,44 @@ async def today_handler(chat, cam_name):
 async def unhandled_callbacks(chat, cq):
     await cq.answer()
     await chat.send_text("Unhandled callback fired")
+
+
+@bot.command('reg')
+@ThreadSwitcherWithDB.optimized
+async def reg(chat: Chat, match):
+    async with db_in_thread():
+        admin = db.query(Admin).filter(Admin.chat_id == chat.id).one_or_none()
+    if admin:
+        await chat.send_text('You are already registered!')
+        return
+    async with db_in_thread():
+        admin = Admin(chat_id=chat.id)
+        db.add(admin)
+        db.commit()
+    await chat.send_text('You are successfully registered!')
+
+
+@bot.command('ch')
+@ThreadSwitcherWithDB.optimized
+async def reg_channel(chat: Chat, match):
+    async with db_in_thread():
+        channel = db.query(Channel).filter(Channel.chat_id == chat.id).one_or_none()
+    if channel:
+        await notify_admins('Channel already registered!')
+        return
+    async with db_in_thread():
+        channel = Channel(chat_id=chat.id)
+        db.add(channel)
+        db.commit()
+    await notify_admins('Channel registered!')
+
+
+@ThreadSwitcherWithDB.optimized
+async def notify_admins(text):
+    async with db_in_thread():
+        admins = db.query(Admin).all()
+    for admin in admins:
+        await bot.send_message(admin.chat_id, text)
 
 
 async def main():

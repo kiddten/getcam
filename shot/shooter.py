@@ -52,15 +52,14 @@ def make_txt_movie(sequence):
     return ImageSequenceClip(txt_clip, fps=25)
 
 
-@logger.catch()
-def make_movie(cam: Cam, day, regular=True):
+def make_movie(cam: Cam, day: str, regular: bool = True):
     regular = 'regular' if regular else ''
     root = Path(conf.root_dir) / 'data' / cam.name
     path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
     sequence = check_sequence_for_gray_images(str(path))
     txt_clip = make_txt_movie(sequence)
-    image_clip = ImageSequenceClip(sequence, fps=25)
+    image_clip = ImageSequenceClip(sequence, fps=cam.fps)
     clip = CompositeVideoClip([image_clip, txt_clip.set_pos(('right', 'top'))], use_bgclip=True)
     movie_path = root / regular / 'clips' / f'{day}.mp4'
     movie_path.parent.mkdir(parents=True, exist_ok=True)

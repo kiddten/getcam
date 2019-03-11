@@ -1,6 +1,6 @@
 import os
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 NAME = 'getcam'
 DESCRIPTION = 'Get image from url repeatedly.'
@@ -27,7 +27,7 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(exclude=('tests',)),
+    packages=find_packages('.'),
     # py_modules=['shot'],
     entry_points={
         'console_scripts': ['shot=shot.shot:run'],
@@ -45,3 +45,5 @@ setup(
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
 )
+
+# pip install -e ../getcam
