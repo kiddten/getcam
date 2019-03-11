@@ -43,13 +43,13 @@ def ts_clip(path):
     return txt.get_frame(0)
 
 
-def make_txt_movie(sequence):
+def make_txt_movie(sequence, fps):
     logger.debug('Creating txt movie..')
     executor = concurrent.futures.ThreadPoolExecutor()
     txt_clip = []
     for item in executor.map(ts_clip, sequence):
         txt_clip.append(item)
-    return ImageSequenceClip(txt_clip, fps=25)
+    return ImageSequenceClip(txt_clip, fps=fps)
 
 
 def make_movie(cam: Cam, day: str, regular: bool = True):
@@ -58,7 +58,7 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
     sequence = check_sequence_for_gray_images(str(path))
-    txt_clip = make_txt_movie(sequence)
+    txt_clip = make_txt_movie(sequence, cam.fps)
     image_clip = ImageSequenceClip(sequence, fps=cam.fps)
     clip = CompositeVideoClip([image_clip, txt_clip.set_pos(('right', 'top'))], use_bgclip=True)
     movie_path = root / regular / 'clips' / f'{day}.mp4'
