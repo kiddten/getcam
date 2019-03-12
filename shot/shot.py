@@ -289,8 +289,7 @@ async def main():
         scheduler.add_job(get_img, args=(cam, bot.session))
         scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
         if cam.render_daily:
-            scheduler.add_job(daily_movie, None, (cam,))
-            # scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
+            scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
 
     bot_loop = asyncio.create_task(bot.loop())
     await asyncio.wait([bot_loop])
