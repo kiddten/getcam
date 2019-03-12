@@ -79,9 +79,11 @@ async def daily_movie(cam: Cam):
     if cam.update_channel:
         async with db_in_thread():
             channels = db.query(Channel).all()
-        with open(path, 'rb') as clip:
-            for channel in channels:
-                await Chat(bot, channel.chat_id).send_video(clip)
+        for channel in channels:
+            clip = open(path, 'rb')
+            await Chat(bot, channel.chat_id).send_video(clip)
+            # TODO find out why file here is closed
+            clip.close()
 
 
 async def regular_handler(chat, cam_name):
@@ -286,7 +288,9 @@ async def main():
     for cam in conf.cameras:
         scheduler.add_job(get_img, args=(cam, bot.session))
         scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
-        scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
+        if cam.render_daily:
+            scheduler.add_job(daily_movie, None, (cam,))
+            # scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
 
     bot_loop = asyncio.create_task(bot.loop())
     await asyncio.wait([bot_loop])
