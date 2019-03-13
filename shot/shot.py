@@ -17,18 +17,25 @@ from shot.shooter import get_img, make_movie
 
 conf = read()
 
+config = {
+    'handlers': [
+        {
+            'sink': Path(conf.root_dir) / conf.log_file,
+            'level': 'DEBUG'
+        },
+    ],
+}
+logger.configure(**config)
+
 
 class InterceptHandler(logging.Handler):
     def emit(self, record):
-        logger_opt = logger.opt(raw=True)
-        logger_opt.log(record.levelno, record.getMessage())
+        logger_opt = logger.opt(exception=record.exc_info)
+        logger_opt.log(record.levelname, record.getMessage())
 
 
-if not conf.debug:
-    logging.getLogger(None).addHandler(InterceptHandler())
-
-logger.add(Path(conf.root_dir) / conf.log_file)
-logging.basicConfig(level=logging.DEBUG)
+logging.getLogger(None).addHandler(InterceptHandler())
+logging.getLogger('asyncio').addHandler(InterceptHandler())
 bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
 
