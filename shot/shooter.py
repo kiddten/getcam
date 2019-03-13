@@ -29,11 +29,17 @@ def convert_gray_to_rgb(path):
 def check_sequence_for_gray_images(sequence):
     logger.debug('Checking sequence for gray images')
     sequence = sorted([os.path.join(sequence, f) for f in os.listdir(sequence)])
+    converted = []
     for item in sequence:
-        image = imageio.imread(item)
+        try:
+            image = imageio.imread(item)
+        except Exception:
+            logger.exception(f'Can not read file {item}')
+            continue
         if len(image.shape) < 3:
             convert_gray_to_rgb(item)
-    return sequence
+        converted.append(item)
+    return converted
 
 
 def ts_clip(path):
