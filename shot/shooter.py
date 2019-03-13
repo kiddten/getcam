@@ -78,10 +78,17 @@ async def get_img(cam: Cam, session, regular=True):
     now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
     name = path / f'{now}.jpg'
     logger.info(f'Attempt to get img {name}')
-    async with session.get(cam.url) as response:
-        if response.status == 200:
-            data = await response.read()
-            with open(name, 'wb') as f:
-                f.write(data)
+    try:
+        response = await session.get(cam.url)
+    except Exception:
+        logger.exception(f'Exception during getting img {name}')
+        return
+    if response.status == 200:
+        data = await response.read()
+        if not data:
+            logger.warning(f'Empty file data {name}')
+            return
+        with open(name, 'wb') as f:
+            f.write(data)
     logger.info(f'Finished with {name}')
     return str(name)

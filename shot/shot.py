@@ -171,11 +171,13 @@ async def back(chat, cq, match):
     )
 
 
-async def img_handler(chat, match):
+async def img_handler(chat: Chat, match):
     cam = await get_cam(match.group(1), chat)
     if not cam:
         return
     image = await get_img(cam, bot.session, regular=False)
+    if not image:
+        await chat.send_text('Error during image request :(')
     with open(image, 'rb') as image:
         await chat.send_photo(image)
 
@@ -292,7 +294,8 @@ async def main():
             scheduler.add_job(daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
 
     bot_loop = asyncio.create_task(bot.loop())
-    await asyncio.wait([bot_loop])
+    alive_message = asyncio.create_task(notify_admins('I am alive!'))
+    await asyncio.wait([bot_loop, alive_message])
 
 
 def run():
