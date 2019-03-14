@@ -1,6 +1,16 @@
 settings.yaml
+settings.json
+getcam.service
 .idea
 cam.log
 __pycache__
 *.log
 imgs
+proto
+remote
+misc
+data
+.venv
+build
+dist
+getcam.egg-info
