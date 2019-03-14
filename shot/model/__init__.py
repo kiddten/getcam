@@ -1,6 +1,6 @@
 from loguru import logger
 from sqla_wrapper import SQLAlchemy
-from sqlalchemy import Column, Integer
+from sqlalchemy import BigInteger, Column, Integer, String
 from sqlalchemy.exc import SQLAlchemyError
 
 from shot.conf import read
@@ -24,12 +24,13 @@ class BaseModel(db.Model):
 
 class Admin(BaseModel):
     admin_id = Column(Integer, primary_key=True)
-    chat_id = Column(Integer, unique=True)
+    chat_id = Column(BigInteger, unique=True)
 
 
 class Channel(BaseModel):
     channel_id = Column(Integer, primary_key=True)
-    chat_id = Column(Integer, unique=True)
+    chat_id = Column(BigInteger, unique=True)
+    cam = Column(String(length=64))
 
 # db.create_all()
 # TODO automate db.create_all()

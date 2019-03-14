@@ -85,7 +85,7 @@ async def daily_movie(cam: Cam):
         return
     if cam.update_channel:
         async with db_in_thread():
-            channels = db.query(Channel).all()
+            channels = db.query(Channel).filter(Channel.cam == cam.name).all()
         for channel in channels:
             clip = open(path, 'rb')
             await Chat(bot, channel.chat_id).send_video(clip)
@@ -268,19 +268,34 @@ async def reg(chat: Chat, match):
     await chat.send_text('You are successfully registered!')
 
 
+@dataclass_json
+@dataclass
+class CamerasChannel:
+    options: Markup = Markup(
+        [[InlineKeyboardButton(text=cam.name, callback_data=f'choose_cam {cam.name}') for cam in conf.cameras], ])
+
+
 @bot.command('ch')
 @ThreadSwitcherWithDB.optimized
 async def reg_channel(chat: Chat, match):
     async with db_in_thread():
         channel = db.query(Channel).filter(Channel.chat_id == chat.id).one_or_none()
     if channel:
-        await notify_admins('Channel already registered!')
+        await notify_admins(f'Channel {chat.id} already registered!')
         return
+    await chat.send_text('Choose cam for channel', reply_markup=CamerasChannel().options.to_json())
+
+
+@bot.callback(r'choose_cam (.+)')
+@ThreadSwitcherWithDB.optimized
+async def choose_cam_callback(chat, cq, match):
+    cam = match.group(1)
     async with db_in_thread():
-        channel = Channel(chat_id=chat.id)
+        channel = Channel(chat_id=chat.id, cam=cam)
         db.add(channel)
         db.commit()
-    await notify_admins('Channel registered!')
+    await cq.answer(text=f'Added channel for {cam}')
+    await notify_admins(text=f'Added channel {chat.id} for {cam}')
 
 
 @ThreadSwitcherWithDB.optimized
