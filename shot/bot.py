@@ -100,6 +100,7 @@ class CamBot:
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
+        self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'select (.+)', self.select)
@@ -132,19 +133,23 @@ class CamBot:
                 # TODO find out why file here is closed
                 clip.close()
 
-    async def img_handler(self, chat: Chat, match):
-        cam = await get_cam(match.group(1), chat)
-        if not cam:
-            return
+    async def img_all_cams(self, chat: Chat, match):
+        for cam in conf.cameras_list:
+            await self.img_handler(chat, cam)
+
+    async def img_handler(self, chat: Chat, cam):
         image = await get_img(cam, self._bot.session, regular=False)
         if not image:
-            await chat.send_text('Error during image request :(')
+            await chat.send_text(f'Error during image request for {cam.name}')
         with open(image, 'rb') as image:
             await chat.send_photo(image)
 
     async def img_callback(self, chat, cq, match):
         await cq.answer()
-        await self.img_handler(chat, match)
+        cam = await get_cam(match.group(1), chat)
+        if not cam:
+            return
+        await self.img_handler(chat, cam)
 
     @ThreadSwitcherWithDB.optimized
     async def reg_channel(self, chat: Chat, match):
