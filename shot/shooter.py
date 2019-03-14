@@ -11,9 +11,9 @@ from moviepy.video.VideoClip import TextClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
-from shot.conf import Cam, read
+from shot import conf
+from shot.conf.model import Cam
 
-conf = read()
 logger.add(Path(conf.root_dir) / conf.log_file)
 logging.basicConfig(level=logging.DEBUG)
 

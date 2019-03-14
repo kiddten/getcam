@@ -3,10 +3,9 @@ from sqla_wrapper import SQLAlchemy
 from sqlalchemy import BigInteger, Column, Integer, String
 from sqlalchemy.exc import SQLAlchemyError
 
-from shot.conf import read
+from shot import conf
 from .utils import db_session_scope
 
-conf = read()
 db = SQLAlchemy(conf.db_uri, scopefunc=db_session_scope)
 
 

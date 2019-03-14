@@ -3,8 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from shot import model
-from shot.conf import read
+from shot import conf, model
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,7 +23,6 @@ target_metadata = model.db.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-conf = read()
 config.set_main_option('sqlalchemy.url', conf.db_uri)
 
 

@@ -10,12 +10,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dataclasses_json import dataclass_json
 from loguru import logger
 
-from shot.conf import Cam, read
+from shot import conf
+from shot.conf.model import Cam
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import get_img, make_movie
-
-conf = read()
 
 config = {
     'handlers': [
@@ -40,10 +39,10 @@ bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
 
 
 async def get_cam(name, chat):
-    if name not in conf.cameras_dict:
+    if name not in conf.cameras:
         await chat.send_text('Wrong cam name!')
         return
-    return conf.cameras_dict[name]
+    return conf.cameras[name]
 
 
 @bot.command('/yesterday')
@@ -145,10 +144,10 @@ class Options:
 @dataclass
 class Menu:
     main_menu: Markup = Markup(
-        [[InlineKeyboardButton(text=cam.name, callback_data=f'select {cam.name}') for cam in conf.cameras], ])
+        [[InlineKeyboardButton(text=cam.name, callback_data=f'select {cam.name}') for cam in conf.cameras_list], ])
 
     cam_options: Dict[str, Options] = field(
-        default_factory=lambda: {cam.name: Options(cam.name) for cam in conf.cameras}
+        default_factory=lambda: {cam.name: Options(cam.name) for cam in conf.cameras_list}
     )
 
 
@@ -272,7 +271,7 @@ async def reg(chat: Chat, match):
 @dataclass
 class CamerasChannel:
     options: Markup = Markup(
-        [[InlineKeyboardButton(text=cam.name, callback_data=f'choose_cam {cam.name}') for cam in conf.cameras], ])
+        [[InlineKeyboardButton(text=cam.name, callback_data=f'choose_cam {cam.name}') for cam in conf.cameras_list], ])
 
 
 @bot.command('ch')
@@ -309,7 +308,7 @@ async def notify_admins(text):
 async def main():
     scheduler = AsyncIOScheduler()
     scheduler.start()
-    for cam in conf.cameras:
+    for cam in conf.cameras_list:
         scheduler.add_job(get_img, args=(cam, bot.session))
         scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
         if cam.render_daily:
