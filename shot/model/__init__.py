@@ -31,6 +31,5 @@ class Channel(BaseModel):
     channel_id = Column(Integer, primary_key=True)
     chat_id = Column(Integer, unique=True)
 
-
-db.create_all()
+# db.create_all()
 # TODO automate db.create_all()
