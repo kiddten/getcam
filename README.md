@@ -15,6 +15,6 @@ https://fonts.google.com/specimen/Ubuntu
 ### virtualenv
 ```
 python -m venv ./.venv/getcam
-pip intall -r requirements.txt
+pip install -r requirements.txt
 pip install -e ../getcam/
 ``` 

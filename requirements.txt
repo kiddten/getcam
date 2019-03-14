@@ -1,6 +1,12 @@
-requests==2.21.0
+aiotg==1.0.0
+alembic==1.0.8
+APScheduler==3.5.3
+dataclasses-json==0.2.2
+imageio==2.4.1
 loguru==0.2.5
-moviepy
-pyyaml
-aiotg
-apscheduler
+moviepy==0.2.3.5
+Pillow==5.4.1
+psycopg2-binary==2.7.7
+PyYAML==3.13
+requests==2.21.0
+sqla-wrapper==2.0.1
