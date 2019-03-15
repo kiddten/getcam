@@ -8,11 +8,11 @@ from dataclasses_json import dataclass_json
 @dataclass
 class Cam:
     url: str
-    interval: int
     offset: int
-    update_channel: bool
-    render_daily: bool
-    fps: int
+    fps: int = 25
+    interval: int = 60
+    update_channel: bool = False
+    render_daily: bool = True
     name: Optional[str] = None
     description: Optional[str] = None
 
