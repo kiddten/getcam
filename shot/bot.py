@@ -12,7 +12,7 @@ from shot.conf.model import Cam
 from shot.keyboards import CamerasChannel, Menu
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import get_img, make_movie, make_weekly_movie
+from shot.shooter import get_img, make_movie, make_weekly_movie, stats
 
 
 async def unhandled_callbacks(chat, cq):
@@ -100,6 +100,15 @@ async def reg(chat: Chat, match):
     await chat.send_text('You are successfully registered!')
 
 
+async def stats_command(chat: Chat, match):
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, stats)
+    markdown_result = []
+    for k, v in result.items():
+        markdown_result.append(f'*{k}*: {v}')
+    await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
+
+
 class CamBot:
 
     def __init__(self):
@@ -115,6 +124,7 @@ class CamBot:
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
+        self._bot.add_command(r'/stats', stats_command)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)

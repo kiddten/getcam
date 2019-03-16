@@ -124,3 +124,14 @@ async def get_img(cam: Cam, session, regular=True):
             f.write(data)
     logger.info(f'Finished with {name}')
     return str(name)
+
+
+def stats(day=None):
+    day = day or pendulum.today()
+    day = day.format('DD_MM_YYYY')
+    root = Path(conf.root_dir) / 'data'
+    result = {}
+    for cam in conf.cameras.keys():
+        path = root / cam / 'regular' / 'imgs' / day
+        result[cam] = len(list(path.iterdir()))
+    return result
