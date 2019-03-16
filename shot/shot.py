@@ -41,7 +41,7 @@ async def main():
             scheduler.add_job(bot.daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
 
     bot_loop = asyncio.create_task(bot.loop())
-    alive_message = asyncio.create_task(bot.notify_admins('I am alive!'))
+    alive_message = asyncio.create_task(bot.notify_admins('Ready! Use /menu'))
     await asyncio.wait([bot_loop, alive_message])
 
 

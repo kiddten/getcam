@@ -34,6 +34,7 @@ class Options:
                     InlineKeyboardButton(text='img', callback_data=f'img {self.cam}'),
                     InlineKeyboardButton(text='regular', callback_data=f'regular {self.cam}'),
                     InlineKeyboardButton(text='today', callback_data=f'today {self.cam}'),
+                    InlineKeyboardButton(text='weekly', callback_data=f'weekly {self.cam}'),
                 ],
                 [InlineKeyboardButton(text='« Back', callback_data='back')],
             ]
@@ -44,7 +45,7 @@ class Options:
 @dataclass
 class Menu:
     main_menu: Markup = Markup(
-        [[InlineKeyboardButton(text=cam.name, callback_data=f'select {cam.name}') for cam in conf.cameras_list], ])
+        [[InlineKeyboardButton(text=cam.name, callback_data=f'select {cam.name}')] for cam in conf.cameras_list], )
 
     cam_options: Dict[str, Options] = field(
         default_factory=lambda: {cam.name: Options(cam.name) for cam in conf.cameras_list}

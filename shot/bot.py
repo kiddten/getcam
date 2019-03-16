@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import dataclasses
 import datetime
 from pathlib import Path
@@ -11,7 +12,7 @@ from shot.conf.model import Cam
 from shot.keyboards import CamerasChannel, Menu
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import get_img, make_movie
+from shot.shooter import get_img, make_movie, make_weekly_movie
 
 
 async def unhandled_callbacks(chat, cq):
@@ -67,7 +68,20 @@ async def today_handler(chat, cam_name):
         return
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
-    clip = await loop.run_in_executor(None, lambda: make_movie(cam, today, regular=False))
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        clip = await loop.run_in_executor(pool, lambda: make_movie(cam, today, regular=False, executor=pool))
+    with open(clip, 'rb') as clip:
+        await chat.send_video(clip)
+
+
+async def weekly(chat: Chat, cq, match):
+    await cq.answer(text='Going to make weekly movie!')
+    cam = await get_cam(match.group(1), chat)
+    if not cam:
+        return
+    loop = asyncio.get_event_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        clip = await loop.run_in_executor(pool, lambda: make_weekly_movie(cam, pool))
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
@@ -103,6 +117,7 @@ class CamBot:
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
+        self._bot.add_callback(r'weekly (.+)', weekly)
         self._bot.add_callback(r'select (.+)', self.select)
         self._bot.add_callback(r'back', self.back)
         self._bot.add_callback(r'img (.+)', self.img_callback)
@@ -114,16 +129,17 @@ class CamBot:
         day = datetime.datetime.now() - datetime.timedelta(days=1)
         day = day.strftime('%d_%m_%Y')
         loop = asyncio.get_event_loop()
-        try:
-            path = await loop.run_in_executor(None, make_movie, cam, day)
-        except FileNotFoundError as exc:
-            logger.exception(exc)
-            await self.notify_admins(f'File {exc.filename} not found for daily movie {cam.name}: {day}')
-            return
-        except Exception as exc:
-            logger.exception(exc)
-            await self.notify_admins(f'Error during making daily movie for {cam.name}: {day}')
-            return
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            try:
+                path = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
+            except FileNotFoundError as exc:
+                logger.exception(exc)
+                await self.notify_admins(f'File {exc.filename} not found for daily movie {cam.name}: {day}')
+                return
+            except Exception as exc:
+                logger.exception(exc)
+                await self.notify_admins(f'Error during making daily movie for {cam.name}: {day}')
+                return
         if cam.update_channel:
             async with db_in_thread():
                 channels = db.query(Channel).filter(Channel.cam == cam.name).all()
