@@ -129,9 +129,15 @@ async def get_img(cam: Cam, session, regular=True):
 def stats(day=None):
     day = day or pendulum.today()
     day = day.format('DD_MM_YYYY')
+    logger.info(f'Calculating file stats {day}')
     root = Path(conf.root_dir) / 'data'
     result = {}
     for cam in conf.cameras.keys():
+        total_size = 0
+        count = 0
         path = root / cam / 'regular' / 'imgs' / day
-        result[cam] = len(list(path.iterdir()))
+        for p in path.iterdir():
+            total_size += p.stat().st_size
+            count += 1
+        result[cam] = {'size': total_size, 'count': count}
     return result

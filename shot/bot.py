@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 from pathlib import Path
 
+import pendulum
 from aiotg import Bot, Chat
 from loguru import logger
 
@@ -13,6 +14,7 @@ from shot.keyboards import CamerasChannel, Menu
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import get_img, make_movie, make_weekly_movie, stats
+from shot.utils import convert_size
 
 
 async def unhandled_callbacks(chat, cq):
@@ -101,12 +103,20 @@ async def reg(chat: Chat, match):
 
 
 async def stats_command(chat: Chat, match):
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, stats)
-    markdown_result = []
-    for k, v in result.items():
-        markdown_result.append(f'*{k}*: {v}')
+    markdown_result = await stats_handler(pendulum.today())
     await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
+
+
+async def stats_handler(day=None):
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: stats(day))
+    markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
+    for d in result:
+        stat = result[d]
+        count, size = stat['count'], convert_size(stat['size'])
+        avg = convert_size(stat['size'] / count)
+        markdown_result.append(f'*{d}*: {count} -- {size} -- {avg} ')
+    return markdown_result
 
 
 class CamBot:
@@ -133,6 +143,11 @@ class CamBot:
         self._bot.add_callback(r'img (.+)', self.img_callback)
         self._bot.add_callback(r'choose_cam (.+)', self.choose_cam_callback)
         self._bot.callback(unhandled_callbacks)
+
+    @ThreadSwitcherWithDB.optimized
+    async def daily_stats(self):
+        markdown_result = await stats_handler(pendulum.yesterday())
+        await self.notify_admins('\n'.join(markdown_result), parse_mode='Markdown')
 
     @ThreadSwitcherWithDB.optimized
     async def daily_movie(self, cam: Cam):
@@ -197,11 +212,11 @@ class CamBot:
         await self.notify_admins(text=f'Added channel {chat.id} for {cam}')
 
     @ThreadSwitcherWithDB.optimized
-    async def notify_admins(self, text):
+    async def notify_admins(self, text, **options):
         async with db_in_thread():
             admins = db.query(Admin).all()
         for admin in admins:
-            await self._bot.send_message(admin.chat_id, text)
+            await self._bot.send_message(admin.chat_id, text, **options)
 
     async def menu(self, chat, match):
         await chat.send_text('Menu', reply_markup=self.menu_markup.main_menu.to_json())

@@ -39,6 +39,7 @@ async def main():
         scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
         if cam.render_daily:
             scheduler.add_job(bot.daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
+    scheduler.add_job(bot.daily_stats, 'cron', hour=0, second=5)
 
     bot_loop = asyncio.create_task(bot.loop())
     alive_message = asyncio.create_task(bot.notify_admins('Ready! Use /menu'))
