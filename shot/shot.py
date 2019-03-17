@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import logging
 from pathlib import Path
 
@@ -35,10 +36,11 @@ async def main():
     scheduler = AsyncIOScheduler()
     scheduler.start()
     for cam in conf.cameras_list:
-        scheduler.add_job(get_img, args=(cam, bot.session))
-        scheduler.add_job(get_img, 'interval', (cam, bot.session), seconds=cam.interval)
-        if cam.render_daily:
-            scheduler.add_job(bot.daily_movie, 'cron', (cam,), hour=0, minute=cam.offset)
+        scheduler.add_job(
+            get_img, 'interval', (cam, bot.session),
+            seconds=cam.interval, next_run_time=datetime.datetime.now()
+        )
+    scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
     scheduler.add_job(bot.daily_stats, 'cron', hour=0, second=5)
 
     bot_loop = asyncio.create_task(bot.loop())

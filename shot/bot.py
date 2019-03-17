@@ -173,6 +173,12 @@ class CamBot:
                 await Chat(self._bot, channel.chat_id).send_video(clip)
                 # TODO find out why file here is closed
                 clip.close()
+        await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
+
+    async def daily_movie_group(self):
+        for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
+            if cam.render_daily:
+                await self.daily_movie(cam)
 
     async def img_all_cams(self, chat: Chat, match):
         for cam in conf.cameras_list:
