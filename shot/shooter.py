@@ -164,7 +164,8 @@ def stats(day=None):
     day = day.format('DD_MM_YYYY')
     logger.info(f'Calculating file stats {day}')
     root = Path(conf.root_dir) / 'data'
-    result = {}
+    result = {'cameras': {}}
+    total = 0
     for cam in conf.cameras.keys():
         total_size = 0
         count = 0
@@ -172,5 +173,7 @@ def stats(day=None):
         for p in path.iterdir():
             total_size += p.stat().st_size
             count += 1
-        result[cam] = {'size': total_size, 'count': count}
+        result['cameras'][cam] = {'size': total_size, 'count': count}
+        total += total_size
+    result['total'] = total
     return result

@@ -41,10 +41,10 @@ async def main():
             seconds=cam.interval, next_run_time=datetime.datetime.now()
         )
     scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
-    scheduler.add_job(bot.daily_stats, 'cron', hour=0, second=5)
+    scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
     bot_loop = asyncio.create_task(bot.loop())
-    alive_message = asyncio.create_task(bot.notify_admins('Ready! Use /menu'))
+    alive_message = asyncio.create_task(bot.notify_admins('Ready! Use /menu, /stats'))
     await asyncio.wait([bot_loop, alive_message])
 
 

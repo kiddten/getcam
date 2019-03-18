@@ -112,11 +112,13 @@ async def stats_handler(day=None):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: stats(day))
     markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
-    for d in result:
-        stat = result[d]
+    for d in result['cameras']:
+        stat = result['cameras'][d]
         count, size = stat['count'], convert_size(stat['size'])
         avg = convert_size(stat['size'] / count)
         markdown_result.append(f'*{d}*: {count} -- {size} -- {avg} ')
+    total = convert_size(result['total'])
+    markdown_result.append(f'*total*: {total}')
     return markdown_result
 
 
