@@ -1,4 +1,6 @@
+import asyncio
 import datetime
+import io
 import logging
 from pathlib import Path
 
@@ -129,10 +131,32 @@ async def get_img(cam: Cam, session, regular=True):
         if not data:
             logger.warning(f'Empty file data {name}')
             return
-        with open(name, 'wb') as f:
-            f.write(data)
+        image = await save_img(cam, name, data)
     logger.info(f'Finished with {name}')
-    return str(name)
+    return str(image)
+
+
+async def save_img(cam: Cam, path, data):
+    if not cam.resize:
+        with open(path, 'wb') as f:
+            f.write(data)
+        return path
+    # path data/cam_name/imgs/dd_mm_yyyy/dd_mm_yyyy_timestamp.jpg
+    original = path.parent.parent / 'original' / path.parent.name / path.name
+    original.parent.mkdir(parents=True, exist_ok=True)
+    with open(original, 'wb') as f:
+        f.write(data)
+    size = tuple(int(i) for i in cam.resize.split('x'))
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, lambda: resize_img(data, size, path))
+    return original
+
+
+def resize_img(data, size, path):
+    logger.debug(f'Resizing image {path}')
+    image = Image.open(io.BytesIO(data))
+    image.thumbnail(size, Image.ANTIALIAS)
+    image.save(path, format='JPEG')
 
 
 def stats(day=None):

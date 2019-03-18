@@ -14,6 +14,7 @@ class Cam:
     update_channel: bool = False
     render_daily: bool = True
     name: Optional[str] = None
+    resize: Optional[str] = None
     description: Optional[str] = None
 
 
