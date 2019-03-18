@@ -25,18 +25,24 @@ def convert_gray_to_rgb(path):
     rgb_image.save(path, format=image.format)
 
 
-def check_sequence_for_gray_images(sequence):
+def image_gray_check(path):
+    logger.debug(f'Gray check {path}')
+    try:
+        image = imageio.imread(path)
+    except Exception:
+        logger.exception(f'Can not read file {path}')
+        return
+    if len(image.shape) < 3:
+        convert_gray_to_rgb(path)
+    return path
+
+
+def check_sequence_for_gray_images(sequence, executor):
     logger.debug('Checking sequence for gray images')
     converted = []
-    for item in sequence:
-        try:
-            image = imageio.imread(item)
-        except Exception:
-            logger.exception(f'Can not read file {item}')
-            continue
-        if len(image.shape) < 3:
-            convert_gray_to_rgb(item)
-        converted.append(item)
+    for item in executor.map(image_gray_check, sequence):
+        if item is not None:
+            converted.append(item)
     return converted
 
 
@@ -60,10 +66,13 @@ def make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
     root = Path(conf.root_dir) / 'data' / cam.name
     path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
-    sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()))
+    sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()), executor)
     txt_clip = make_txt_movie(sequence, cam.fps, executor=executor)
+    logger.info(f'Composing clip for {path}:{day}')
     image_clip = ImageSequenceClip(sequence, fps=cam.fps)
+    logger.info(f'ImageSequenceClip ready')
     clip = CompositeVideoClip([image_clip, txt_clip.set_position(('right', 'top'))], use_bgclip=True)
+    logger.info(f'CompositeVideoClip ready')
     movie_path = root / regular / 'clips' / f'{day}.mp4'
     movie_path.parent.mkdir(parents=True, exist_ok=True)
     movie_path = str(movie_path)

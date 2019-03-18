@@ -35,7 +35,8 @@ async def mov(chat, match):
         return
     day = match.group(1)
     loop = asyncio.get_event_loop()
-    clip = await loop.run_in_executor(None, make_movie, cam, day)
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
