@@ -138,6 +138,7 @@ class CamBot:
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_command(r'/stats', stats_command)
+        self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)
@@ -182,6 +183,10 @@ class CamBot:
         for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
             if cam.render_daily:
                 await self.daily_movie(cam)
+
+    async def daily_movie_group_command(self, chat, match):
+        logger.info('Forced daily movie group command')
+        await self.daily_movie_group()
 
     async def img_all_cams(self, chat: Chat, match):
         for cam in conf.cameras_list:
