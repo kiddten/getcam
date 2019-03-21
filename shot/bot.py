@@ -29,18 +29,6 @@ async def get_cam(name, chat):
     return conf.cameras[name]
 
 
-async def mov(chat, match):
-    cam = await get_cam(match.group(2), chat)
-    if not cam:
-        return
-    day = match.group(1)
-    loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
-    with open(clip, 'rb') as clip:
-        await chat.send_video(clip)
-
-
 async def regular_handler(chat, cam_name):
     cam = await get_cam(cam_name, chat)
     if not cam:
@@ -132,7 +120,7 @@ class CamBot:
         self.init_handlers()
 
     def init_handlers(self):
-        self._bot.add_command(r'/mov (.+) (.+)', mov)
+        self._bot.add_command(r'/mov (.+) (.+)', self.mov)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
@@ -178,6 +166,22 @@ class CamBot:
                 # TODO find out why file here is closed
                 clip.close()
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
+
+    async def mov(self, chat, match):
+        cam = await get_cam(match.group(2), chat)
+        if not cam:
+            return
+        day = match.group(1)
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            try:
+                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
+            except Exception:
+                await self.notify_admins(f'Error during movie request {day} {cam.name}')
+                return
+        await self.notify_admins(f'Video ready. Uploading..')
+        with open(clip, 'rb') as clip:
+            await chat.send_video(clip)
 
     async def daily_movie_group(self):
         for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
