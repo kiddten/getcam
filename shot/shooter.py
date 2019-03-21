@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import io
-import logging
 from pathlib import Path
 
 import imageio
@@ -16,7 +15,6 @@ from shot import conf
 from shot.conf.model import Cam
 
 logger.add(Path(conf.root_dir) / conf.log_file)
-logging.basicConfig(level=logging.DEBUG)
 
 
 def convert_gray_to_rgb(path):

@@ -27,6 +27,7 @@ class Conf:
     cameras: Dict[str, Cam]
     debug: bool
     db_uri: str
+    stdout_log: Optional[bool] = False
     cameras_list: Optional[List[Cam]] = None
     tele_proxy: Optional[str] = None
     root_dir: Optional[str] = None

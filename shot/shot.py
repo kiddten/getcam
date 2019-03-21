@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+import sys
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -10,25 +11,27 @@ from shot import conf
 from shot.bot import CamBot
 from shot.shooter import get_img
 
-config = {
-    'handlers': [
-        {
-            'sink': Path(conf.root_dir) / conf.log_file,
-            'level': 'DEBUG'
-        },
-    ],
-}
-logger.configure(**config)
 
+def init_logging():
+    config = {
+        'handlers': [
+            {
+                'sink': Path(conf.root_dir) / conf.log_file,
+                'level': 'DEBUG'
+            },
+        ],
+    }
+    if conf.stdout_log:
+        config['handlers'].append({'sink': sys.stdout, 'level': 'DEBUG'})
+    logger.configure(**config)
 
-class InterceptHandler(logging.Handler):
-    def emit(self, record):
-        logger_opt = logger.opt(exception=record.exc_info)
-        logger_opt.log(record.levelname, record.getMessage())
+    class InterceptHandler(logging.Handler):
+        def emit(self, record):
+            logger_opt = logger.opt(depth=6, exception=record.exc_info)
+            logger_opt.log(record.levelname, record.getMessage())
 
-
-logging.getLogger(None).addHandler(InterceptHandler())
-logging.getLogger('asyncio').addHandler(InterceptHandler())
+    logging.getLogger(None).setLevel(logging.DEBUG)
+    logging.getLogger(None).addHandler(InterceptHandler())
 
 
 async def main():
@@ -49,6 +52,7 @@ async def main():
 
 
 def run():
+    init_logging()
     logger.info('Running getcam service')
     asyncio.run(main())
 
