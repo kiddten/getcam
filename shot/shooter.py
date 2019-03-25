@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import io
+from dataclasses import dataclass
 from pathlib import Path
 
 import imageio
@@ -15,6 +16,21 @@ from shot import conf
 from shot.conf.model import Cam
 
 logger.add(Path(conf.root_dir) / conf.log_file)
+
+
+@dataclass
+class Movie:
+    height: int
+    width: int
+    path: Path
+    thumb: Path
+
+
+def seq_middle(seq):
+    r = len(seq) % 2
+    if r == 0:
+        return len(seq) // 2
+    return (len(seq) - 1) // 2
 
 
 def convert_gray_to_rgb(path):
@@ -75,9 +91,8 @@ def make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
     logger.info(f'CompositeVideoClip ready')
     movie_path = root / regular / 'clips' / f'{day}.mp4'
     movie_path.parent.mkdir(parents=True, exist_ok=True)
-    movie_path = str(movie_path)
-    clip.write_videofile(movie_path, audio=False)
-    return movie_path
+    clip.write_videofile(str(movie_path), audio=False)
+    return Movie(clip.h, clip.w, movie_path, sequence[seq_middle(sequence)])
 
 
 def make_weekly_movie(cam: Cam, executor):

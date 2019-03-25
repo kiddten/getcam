@@ -17,6 +17,14 @@ from shot.shooter import get_img, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
 
 
+async def send_video(chat, clip):
+    with open(clip.path, 'rb') as _clip, open(clip.thumb, 'rb') as thumb:
+        await chat.send_video(
+            _clip, supports_streaming='true',
+            width=str(clip.width), height=str(clip.height), thumb=thumb
+        )
+
+
 async def unhandled_callbacks(chat, cq):
     await cq.answer()
     await chat.send_text('Unhandled callback!')
@@ -39,6 +47,7 @@ async def regular_handler(chat, cam_name):
     if not clip.exists():
         await chat.send_text(f'Can not find regular clip for {day}!')
         return
+    # TODO load metadata from path
     with open(clip, 'rb') as clip:
         await chat.send_video(clip)
 
@@ -61,8 +70,7 @@ async def today_handler(chat, cam_name):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as pool:
         clip = await loop.run_in_executor(pool, lambda: make_movie(cam, today, regular=False, executor=pool))
-    with open(clip, 'rb') as clip:
-        await chat.send_video(clip)
+    await send_video(chat, clip)
 
 
 async def weekly(chat: Chat, cq, match):
@@ -73,8 +81,7 @@ async def weekly(chat: Chat, cq, match):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as pool:
         clip = await loop.run_in_executor(pool, lambda: make_weekly_movie(cam, pool))
-    with open(clip, 'rb') as clip:
-        await chat.send_video(clip)
+    await send_video(chat, clip)
 
 
 @ThreadSwitcherWithDB.optimized
@@ -148,7 +155,7 @@ class CamBot:
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor() as pool:
             try:
-                path = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
+                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
             except FileNotFoundError as exc:
                 logger.exception(exc)
                 await self.notify_admins(f'File {exc.filename} not found for daily movie {cam.name}: {day}')
@@ -161,10 +168,7 @@ class CamBot:
             async with db_in_thread():
                 channels = db.query(Channel).filter(Channel.cam == cam.name).all()
             for channel in channels:
-                clip = open(path, 'rb')
-                await Chat(self._bot, channel.chat_id).send_video(clip)
-                # TODO find out why file here is closed
-                clip.close()
+                await send_video(Chat(self._bot, channel.chat_id), clip)
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
 
     async def mov(self, chat, match):
