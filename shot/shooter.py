@@ -111,17 +111,16 @@ def make_weekly_movie(cam: Cam, executor):
                 t_img = pendulum.from_format(t_img, 'DD_MM_YYYY_HH-mm-ss').time()
                 if morning < t_img < evening:
                     sequence.append(str(img))
-    sequence = check_sequence_for_gray_images(sequence)
+    sequence = check_sequence_for_gray_images(sequence, executor)
     txt_clip = make_txt_movie(sequence, 100, executor)
     logger.info(f'Composing clip for weekly movie ww{start.week_of_year}')
     image_clip = ImageSequenceClip(sequence, fps=100)
     clip = CompositeVideoClip([image_clip, txt_clip.set_position(('right', 'top'))], use_bgclip=True)
     movie_path = root / 'regular' / 'weekly' / f'ww{start.week_of_year}.mp4'
     movie_path.parent.mkdir(parents=True, exist_ok=True)
-    movie_path = str(movie_path)
-    clip.write_videofile(movie_path, audio=False)
+    clip.write_videofile(str(movie_path), audio=False)
     logger.info(f'Finished with clip for weekly movie ww{start.week_of_year}')
-    return movie_path
+    return Movie(clip.h, clip.w, movie_path, sequence[seq_middle(sequence)])
 
 
 async def get_img(cam: Cam, session, regular=True):
