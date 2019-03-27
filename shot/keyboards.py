@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List
 
 from dataclasses_json import dataclass_json
 
 from shot import conf
+from shot.utils import part_path
 
 
 @dataclass_json
@@ -35,6 +37,7 @@ class Options:
                     InlineKeyboardButton(text='regular', callback_data=f'regular {self.cam}'),
                     InlineKeyboardButton(text='today', callback_data=f'today {self.cam}'),
                     InlineKeyboardButton(text='weekly', callback_data=f'weekly {self.cam}'),
+                    InlineKeyboardButton(text='gphotos', callback_data=f'sync {self.cam}'),
                 ],
                 [InlineKeyboardButton(text='« Back', callback_data='back')],
             ]
@@ -57,3 +60,19 @@ class Menu:
 class CamerasChannel:
     options: Markup = Markup(
         [[InlineKeyboardButton(text=cam.name, callback_data=f'choose_cam {cam.name}') for cam in conf.cameras_list], ])
+
+
+@dataclass_json
+@dataclass
+class SyncFolders:
+    cam: str
+    folders: Markup = field(init=False)
+
+    def __post_init__(self):
+        root = Path(conf.root_dir) / 'data' / self.cam / 'regular' / 'imgs'
+        self.folders = Markup(
+            [
+                [InlineKeyboardButton(text=item.name, callback_data=f'gsnc {part_path(item)}')] for item in
+                root.iterdir()
+            ]
+        )

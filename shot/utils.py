@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 
 def convert_size(size_bytes):
@@ -9,3 +10,8 @@ def convert_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f'{s} {size_name[i]}'
+
+
+def part_path(path):
+    root = Path(path.parent.parent.parent.name)
+    return root / path.parent.parent.name / path.parent.name / path.name

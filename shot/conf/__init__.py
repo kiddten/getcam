@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from .model import Cam
+from .model import Cam, GooglePhotos
 
 bot_token: str
 log_file: str
@@ -11,6 +11,7 @@ stdout_log: Optional[bool] = False
 cameras_list: Optional[List[Cam]] = None
 tele_proxy: Optional[str] = None
 root_dir: Optional[str] = None
+google_photos: Optional[GooglePhotos] = None
 
 
 def read():

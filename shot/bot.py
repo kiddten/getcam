@@ -2,6 +2,7 @@ import asyncio
 import concurrent
 import dataclasses
 import datetime
+import shutil
 from pathlib import Path
 
 import pendulum
@@ -10,7 +11,8 @@ from loguru import logger
 
 from shot import conf
 from shot.conf.model import Cam
-from shot.keyboards import CamerasChannel, Menu
+from shot.gphotos import GooglePhotosManager
+from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import get_img, make_movie, make_weekly_movie, stats
@@ -86,6 +88,8 @@ async def weekly(chat: Chat, cq, match):
 
 @ThreadSwitcherWithDB.optimized
 async def reg(chat: Chat, match):
+    # TODO return back or add password protect
+    return
     async with db_in_thread():
         admin = db.query(Admin).filter(Admin.chat_id == chat.id).one_or_none()
     if admin:
@@ -141,6 +145,9 @@ class CamBot:
         self._bot.add_callback(r'back', self.back)
         self._bot.add_callback(r'img (.+)', self.img_callback)
         self._bot.add_callback(r'choose_cam (.+)', self.choose_cam_callback)
+        self._bot.add_callback(r'sync (.+)', self.sync_gphotos)
+        self._bot.add_callback(r'gsnc (.+)', self.run_sync_gphotos)
+        self._bot.add_callback(r'remove (.+)', self.remove_folder)
         self._bot.callback(unhandled_callbacks)
 
     @ThreadSwitcherWithDB.optimized
@@ -257,3 +264,28 @@ class CamBot:
             cq.src['message']['message_id'], 'Menu',
             markup=dataclasses.asdict(self.menu_markup.main_menu)
         )
+
+    async def sync_gphotos(self, chat, cq, match):
+        await cq.answer()
+        cam = match.group(1)
+        await chat.edit_text(
+            cq.src['message']['message_id'], f'Choose folder for {cam}',
+            markup=dataclasses.asdict(SyncFolders(cam).folders)
+        )
+
+    async def run_sync_gphotos(self, chat, cq, match):
+        _folder = match.group(1)
+        folder = Path(conf.root_dir) / 'data' / _folder
+        logger.debug(f'GOING TO SYNC FOLDER {folder}')
+        await cq.answer(text=f'GOING TO SYNC FOLDER {folder}')
+        await GooglePhotosManager().batch_upload(Path(folder))
+        await self.notify_admins(f'{folder} successfully uploaded!')
+        markup = Markup([[InlineKeyboardButton(text=f'{_folder}', callback_data=f'remove {_folder}')]])
+        await chat.send_text(f'Remove folder {folder.name}', reply_markup=markup.to_json())
+
+    async def remove_folder(self, chat, cq, match):
+        await cq.answer(text='Removing folder..')
+        folder = match.group(1)
+        folder = Path(conf.root_dir) / 'data' / folder
+        shutil.rmtree(folder)
+        await chat.send_text('Successfully removed!')

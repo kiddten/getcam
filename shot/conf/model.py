@@ -4,6 +4,34 @@ from typing import Dict, List, Optional
 from dataclasses_json import dataclass_json
 
 
+class LightWeightToDictMixin:
+
+    def as_dict(self):
+        return self.__dict__
+
+
+@dataclass_json
+@dataclass
+class GooglePhotos:
+    @dataclass_json
+    @dataclass
+    class User(LightWeightToDictMixin):
+        access_token: str
+        refresh_token: str
+        expires_in: int
+        expires_at: str
+
+    @dataclass_json
+    @dataclass
+    class Client(LightWeightToDictMixin):
+        client_id: str
+        client_secret: str
+        scopes: List[str]
+
+    user: User
+    client: Client
+
+
 @dataclass_json
 @dataclass
 class Cam:
@@ -31,6 +59,7 @@ class Conf:
     cameras_list: Optional[List[Cam]] = None
     tele_proxy: Optional[str] = None
     root_dir: Optional[str] = None
+    google_photos: Optional[GooglePhotos] = None
 
     def __post_init__(self):
         self.cameras_list = list(self.cameras.values())
