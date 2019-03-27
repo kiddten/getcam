@@ -93,8 +93,11 @@ class GooglePhotosManager:
             data = item.read()
         result = await session.post(self.upload_url, headers=headers, data=data)
         response = await result.text()
-        logger.info(f'Raw upload response for {path} : {response}')
-        return await result.text()
+        logger.info(f'Raw upload status {result.status} response for {path} : {response}')
+        if result.status != 200:
+            logger.warning(f'Error during uploading {path} {response}')
+            return
+        return str(response)
 
     async def batch_raw_upload(self, path: Path):
         headers = {
@@ -112,18 +115,28 @@ class GooglePhotosManager:
         return tokens
 
     async def batch_upload_item(self, photos, album, tokens):
+        empty_counter = 0
         for chunk in chunks(tokens, 50):
-            new_media_items = [{'simpleMediaItem': {'uploadToken': token}} for token in chunk]
+            new_media_items = []
+            for token in chunk:
+                if token:
+                    new_media_items.append({'simpleMediaItem': {'uploadToken': token}})
+                else:
+                    logger.warning('Empty token!')
+                    empty_counter += 1
             data = {
                 'newMediaItems': new_media_items,
                 'albumId': album
             }
             await self.client.as_user(photos.mediaItems.batchCreate(json=data))
             logger.info(f'Images count: {len(chunk)} successfully added to album {album}')
+        if empty_counter:
+            logger.critical(f'Detected {empty_counter} empty tokens!')
         return logger.info(f'All images: {len(tokens)} successfully added to album {album}')
 
     async def batch_upload(self, directory: Path):
         async with self.client as client:
+            await self.refresh_token()
             photos = await client.discover('photoslibrary', 'v1')
             album_name = get_album_name(directory)
             album_id = await self.create_or_retrieve_album(photos, album_name)
@@ -131,6 +144,6 @@ class GooglePhotosManager:
             r = await self.batch_upload_item(photos, album_id, tokens)
 
     async def refresh_token(self):
-        async with self.client as client:
-            response = await client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
+        # async with self.client as client:
+        response = await self.client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
         logger.info(f'access_token refreshed: {response}')
