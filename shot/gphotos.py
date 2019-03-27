@@ -106,7 +106,8 @@ class GooglePhotosManager:
             'X-Goog-Upload-Protocol': 'raw',
         }
         tasks = []
-        async with aiohttp.ClientSession(headers=headers) as session:
+        connector = aiohttp.TCPConnector(limit=20)
+        async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
             for item in sorted(path.iterdir()):
                 print(item)
                 tasks.append(self._upload_raw_task(session, headers, item))
@@ -136,7 +137,7 @@ class GooglePhotosManager:
 
     async def batch_upload(self, directory: Path):
         async with self.client as client:
-            await self.refresh_token()
+            # await self.refresh_token()
             photos = await client.discover('photoslibrary', 'v1')
             album_name = get_album_name(directory)
             album_id = await self.create_or_retrieve_album(photos, album_name)
