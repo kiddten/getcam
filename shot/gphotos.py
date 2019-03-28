@@ -164,8 +164,11 @@ class GooglePhotosManager:
         if empty_counter:
             logger.critical(f'Detected {empty_counter} empty tokens!')
         for item in results:
-            logger.success(item['uploadToken'])
-            logger.success(item['status'])
+            # logger.success(item['uploadToken'])
+            status = item['status']['message']
+            if status != 'OK':
+                logger.success(item['uploadToken'])
+                logger.error(item['status'])
             # ma = item.get('mediaItem'):
             # logger.success(item.get('mediaItem').get('filename'))
         logger.info(f'All images: {len(tokens)} successfully added to album {album}')

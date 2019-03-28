@@ -278,7 +278,12 @@ class CamBot:
         folder = Path(conf.root_dir) / 'data' / _folder
         logger.debug(f'GOING TO SYNC FOLDER {folder}')
         await cq.answer(text=f'GOING TO SYNC FOLDER {folder}')
-        await GooglePhotosManager().batch_upload(Path(folder))
+        await self.notify_admins(f'Started sync {folder}')
+        try:
+            await GooglePhotosManager().batch_upload(Path(folder))
+        except Exception:
+            await self.notify_admins(f'Error with {folder}!')
+            return
         await self.notify_admins(f'{folder} successfully uploaded!')
         markup = Markup([[InlineKeyboardButton(text=f'{_folder}', callback_data=f'remove {_folder}')]])
         await chat.send_text(f'Remove folder {folder.name}', reply_markup=markup.to_json())
