@@ -73,6 +73,6 @@ class SyncFolders:
         self.folders = Markup(
             [
                 [InlineKeyboardButton(text=item.name, callback_data=f'gsnc {part_path(item)}')] for item in
-                root.iterdir()
+                sorted(root.iterdir())
             ]
         )
