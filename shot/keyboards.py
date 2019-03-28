@@ -69,7 +69,7 @@ class SyncFolders:
     folders: Markup = field(init=False)
 
     def __post_init__(self):
-        root = Path(conf.root_dir) / 'data' / self.cam / 'regular' / 'imgs'
+        root = Path(conf.root_dir) / 'data' / self.cam / 'original' / 'imgs'
         self.folders = Markup(
             [
                 [InlineKeyboardButton(text=item.name, callback_data=f'gsnc {part_path(item)}')] for item in
