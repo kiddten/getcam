@@ -111,7 +111,7 @@ class GooglePhotosManager:
         # tasks = []
         # connector = aiohttp.TCPConnector(limit=20)
         start_time = time.time()
-        throttler = Throttler(rate_limit=299, period=60, retry_interval=.1)
+        throttler = Throttler(rate_limit=conf.google_photos.rate_limit, period=60, retry_interval=.1)
         # async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
         #     for item in sorted(path.iterdir()):
         #         print(item)

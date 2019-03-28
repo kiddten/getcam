@@ -30,6 +30,7 @@ class GooglePhotos:
 
     user: User
     client: Client
+    rate_limit: int
 
 
 @dataclass_json
