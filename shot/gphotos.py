@@ -22,7 +22,10 @@ def get_album_name(path: Path):
         if item.name == 'data':
             break
         name.append(item.name)
-    return '-'.join(reversed(name))
+    name = '-'.join(reversed(name))
+    if conf.debug:
+        name = f'TEST-{name}'
+    return name
 
 
 class GooglePhotosManager:
@@ -95,7 +98,6 @@ class GooglePhotosManager:
             logger.info(f'Uploading file {path}')
             with open(path, 'rb') as item:
                 data = item.read()
-            # logger.warning(headers)
             result = await session.post(self.upload_url, headers=headers, data=data)
             response = await result.text()
             logger.info(f'Raw upload status {result.status} response for {path} : {response}')
@@ -110,15 +112,8 @@ class GooglePhotosManager:
             'Content-Type': 'application/octet-stream',
             'X-Goog-Upload-Protocol': 'raw',
         }
-        # tasks = []
-        # connector = aiohttp.TCPConnector(limit=20)
         start_time = time.time()
         throttler = Throttler(rate_limit=conf.google_photos.rate_limit, period=60, retry_interval=.1)
-        # async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
-        #     for item in sorted(path.iterdir()):
-        #         print(item)
-        #         tasks.append(self._upload_raw_task(session, throttler, headers, item))
-        #     tokens = await asyncio.gather(*tasks, return_exceptions=True)
         tokens_tuples = await self.upload_items(throttler, headers, sorted(path.iterdir()))
         tokens = []
         broken_files = 0
@@ -129,8 +124,6 @@ class GooglePhotosManager:
             else:
                 tokens.append(item[0])
         logger.critical(f'BROKEN files count {broken_files}')
-        # tokens = [i[0] for i in tokens_tuples if i]
-        # logger.info(f'Tokens for {path}: {tokens}')
         empty_count = len([x for x in tokens if x is None])
         logger.critical(f'TOTAL TIMEEE::: {time.time() - start_time}')
         logger.critical(f'TOTAL LENGTH:: {len(tokens)} EMPTY TOKENS {empty_count}')
@@ -160,10 +153,10 @@ class GooglePhotosManager:
                 'newMediaItems': new_media_items,
                 'albumId': album
             }
+            # TODO add retry when aborted
             response = await self.client.as_user(photos.mediaItems.batchCreate(json=data))
             logger.info(f'Images count: {len(chunk)} successfully added to album {album}')
             for item in response['newMediaItemResults']:
-                # logger.success(item['uploadToken'])
                 status = item['status']['message']
                 if status != 'OK':
                     logger.success(item['uploadToken'])
@@ -174,8 +167,6 @@ class GooglePhotosManager:
             results.extend(response['newMediaItemResults'])
         if empty_counter:
             logger.critical(f'Detected {empty_counter} empty tokens!')
-            # ma = item.get('mediaItem'):
-            # logger.success(item.get('mediaItem').get('filename'))
         logger.info(f'All images: {len(tokens)} successfully added to album {album}')
         return [(item['uploadToken'], item['status']) for item in results]
 
@@ -190,10 +181,9 @@ class GooglePhotosManager:
             album_name = get_album_name(directory)
             album_id = await self.create_or_retrieve_album(photos, album_name)
             tokens_tuples, tokens = await self.batch_raw_upload(directory)
-            result = await self.batch_upload_item(photos, album_id, tokens)
+            await self.batch_upload_item(photos, album_id, tokens)
 
     async def refresh_token(self, client):
-        # async with self.client as client:
         response = await client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
-        logger.info(f'access_token refreshed: {response}')
+        logger.info('Access_token refreshed')
         return response

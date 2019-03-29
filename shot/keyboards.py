@@ -72,7 +72,10 @@ class SyncFolders:
         root = Path(conf.root_dir) / 'data' / self.cam / 'regular' / 'imgs'
         self.folders = Markup(
             [
-                [InlineKeyboardButton(text=item.name, callback_data=f'gsnc {part_path(item)}')] for item in
-                sorted(root.iterdir())
+                [
+                    InlineKeyboardButton(
+                        text=f'{item.name}: {len(list(item.iterdir()))}', callback_data=f'gsnc {part_path(item)}')
+                ]
+                for item in sorted(root.iterdir())
             ]
         )
