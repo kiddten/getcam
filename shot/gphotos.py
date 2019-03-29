@@ -89,11 +89,13 @@ class GooglePhotosManager:
             r = await self.upload_item(photos, album_id, token)
 
     async def _upload_raw_task(self, session, throttler, headers, path: Path):
-        headers['X-Goog-Upload-File-Name'] = str(path.name)
-        logger.info(f'Uploading file {path}')
-        with open(path, 'rb') as item:
-            data = item.read()
         async with throttler:
+            headers = {**headers}
+            headers['X-Goog-Upload-File-Name'] = str(path.name)
+            logger.info(f'Uploading file {path}')
+            with open(path, 'rb') as item:
+                data = item.read()
+            # logger.warning(headers)
             result = await session.post(self.upload_url, headers=headers, data=data)
             response = await result.text()
             logger.info(f'Raw upload status {result.status} response for {path} : {response}')
@@ -160,15 +162,18 @@ class GooglePhotosManager:
             }
             response = await self.client.as_user(photos.mediaItems.batchCreate(json=data))
             logger.info(f'Images count: {len(chunk)} successfully added to album {album}')
+            for item in response['newMediaItemResults']:
+                # logger.success(item['uploadToken'])
+                status = item['status']['message']
+                if status != 'OK':
+                    logger.success(item['uploadToken'])
+                    logger.error(item['status'])
+                else:
+                    file_name = item['mediaItem']['filename']
+                    logger.success(f'OK! {file_name}')
             results.extend(response['newMediaItemResults'])
         if empty_counter:
             logger.critical(f'Detected {empty_counter} empty tokens!')
-        for item in results:
-            # logger.success(item['uploadToken'])
-            status = item['status']['message']
-            if status != 'OK':
-                logger.success(item['uploadToken'])
-                logger.error(item['status'])
             # ma = item.get('mediaItem'):
             # logger.success(item.get('mediaItem').get('filename'))
         logger.info(f'All images: {len(tokens)} successfully added to album {album}')
@@ -182,8 +187,7 @@ class GooglePhotosManager:
         self.client.active_session = None
         async with self.client as client:
             photos = await client.discover('photoslibrary', 'v1')
-            album_name = get_album_name(directory)
-            # album_name = 'TEST+' + get_album_name(directory)
+            album_name = 'TEST+' + get_album_name(directory)
             album_id = await self.create_or_retrieve_album(photos, album_name)
             tokens_tuples, tokens = await self.batch_raw_upload(directory)
             result = await self.batch_upload_item(photos, album_id, tokens)

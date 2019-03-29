@@ -282,6 +282,7 @@ class CamBot:
         try:
             await GooglePhotosManager().batch_upload(Path(folder))
         except Exception:
+            logger.exception('Sync error!')
             await self.notify_admins(f'Error with {folder}!')
             return
         await self.notify_admins(f'{folder} successfully uploaded!')
