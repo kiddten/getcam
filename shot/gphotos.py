@@ -187,7 +187,7 @@ class GooglePhotosManager:
         self.client.active_session = None
         async with self.client as client:
             photos = await client.discover('photoslibrary', 'v1')
-            album_name = 'TEST+' + get_album_name(directory)
+            album_name = get_album_name(directory)
             album_id = await self.create_or_retrieve_album(photos, album_name)
             tokens_tuples, tokens = await self.batch_raw_upload(directory)
             result = await self.batch_upload_item(photos, album_id, tokens)
