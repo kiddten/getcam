@@ -9,7 +9,8 @@ from loguru import logger
 
 from shot import conf
 from shot.bot import CamBot
-from shot.shooter import get_img
+from shot.gphotos import PhotosAgent
+from shot.shooter import get_img_and_sync
 
 
 def init_logging():
@@ -35,15 +36,18 @@ def init_logging():
 
 
 async def main(run_scheduler=True):
+    agent = PhotosAgent()
+    await agent.start()
     bot = CamBot()
     if run_scheduler:
         scheduler = AsyncIOScheduler()
         scheduler.start()
         for cam in conf.cameras_list:
             scheduler.add_job(
-                get_img, 'interval', (cam, bot.session),
+                get_img_and_sync, 'interval', (cam, bot.session, agent),
                 seconds=cam.interval, next_run_time=datetime.datetime.now()
             )
+        scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
