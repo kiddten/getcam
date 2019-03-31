@@ -86,7 +86,7 @@ class GooglePhotosManager:
         return album_id
 
     async def upload_item(self, photos, album, token, description=None):
-        logger.info(f'Adding f{token} to album {album}')
+        logger.info(f'Adding {token} to album {album}')
         data = {
             'newMediaItems': [
                 {
@@ -195,17 +195,13 @@ class GooglePhotosManager:
         return [(item['uploadToken'], item['status']) for item in results]
 
     async def batch_upload(self, directory: Path):
-        async with self.client as client:
-            creds = await self.refresh_token(client)
-        logger.critical(creds)
-        self.client.user_creds = creds
-        self.client.active_session = None
-        async with self.client as client:
-            photos = await client.discover('photoslibrary', 'v1')
-            album_name = get_album_name(directory)
-            album_id = await self.create_or_retrieve_album(photos, album_name)
-            tokens_tuples, tokens = await self.batch_raw_upload(directory)
-            await self.batch_upload_item(photos, album_id, tokens)
+        await self.start()
+        photos = await self.client.discover('photoslibrary', 'v1')
+        album_name = get_album_name(directory)
+        album_id = await self.create_or_retrieve_album(photos, album_name)
+        tokens_tuples, tokens = await self.batch_raw_upload(directory)
+        await self.batch_upload_item(photos, album_id, tokens)
+        await self.stop()
 
     async def refresh_token(self):
         creds = await self.client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
@@ -231,6 +227,7 @@ class PhotosAgent(GooglePhotosManager):
             data = item.read()
         headers = {**self.headers}
         headers['X-Goog-Upload-File-Name'] = str(path.name)
+        headers['Authorization'] = f'Bearer {self.client.user_creds.access_token}'
         result = await self.raw_session.post(self.upload_url, headers=headers, data=data)
         token = await result.text()
         logger.info(f'Finished uploading. File token: {token}')
