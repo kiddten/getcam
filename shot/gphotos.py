@@ -1,22 +1,24 @@
 import asyncio
-import time
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional
 
 import aiohttp
-import pendulum
 from aiogoogle import Aiogoogle
 from aiogoogle.sessions.aiohttp_session import AiohttpSession
-from asyncio_throttle import Throttler
+from async_lru import alru_cache
 from loguru import logger
 
 from shot import conf
 from shot.conf import Cam
 
 
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
+@dataclass
+class ImageItem:
+    cam: Cam
+    path: Path
+    token: Optional[str] = None
 
 
 def get_album_name(path: Path):
@@ -44,36 +46,105 @@ class GooglePhotosManager:
         self.client = _Aiogoogle(client_creds=self.client_cred.as_dict(), user_creds=self.user_cred.as_dict())
         self.upload_url = 'https://photoslibrary.googleapis.com/v1/uploads'
         self.session = None
+        self.photos = None
+        self.headers = {
+            'Content-Type': 'application/octet-stream',
+            'X-Goog-Upload-Protocol': 'raw',
+        }
+        self.raw_session = None
+        self.queue = None
+        self._stopped = asyncio.Event()
+        self.consumer = None
+        self.items = defaultdict(list)
 
     async def start(self):
         logger.debug('Init session')
         self.client.active_session = AiohttpSession()
         self.session = self.client.active_session
         await self.refresh_token()
+        self.photos = await self.client.discover('photoslibrary', 'v1')
+        self.headers['Authorization'] = f'Bearer {self.client.user_creds.access_token}'
+        self.raw_session = aiohttp.ClientSession(headers=self.headers)
+        self.queue = asyncio.Queue()
 
     async def stop(self):
+        logger.info('Stopping photos manager..')
+        self._stopped.set()
+        self.consumer.cancel()
+        await self.handle_queue_body(shutdown=True)
         await self.session.close()
+        await self.raw_session.close()
 
-    async def raw_upload(self, path):
-        logger.info(f'Uploading file {path}')
-        with open(path, 'rb') as item:
-            data = item.read()
+    async def refresh_token(self):
+        creds = await self.client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
+        self.client.user_creds = creds
+        logger.info('Access_token refreshed')
 
-        headers = {
-            'Authorization': 'Bearer ' + self.client.user_creds.access_token,
-            'Content-Type': 'application/octet-stream',
-            'X-Goog-Upload-File-Name': path,
-            'X-Goog-Upload-Protocol': 'raw',
+    async def produce(self, cam, image):
+        logger.debug(f'Putting item to queue {image}')
+        await self.queue.put(ImageItem(cam, image))
+
+    async def consume(self):
+        while not self._stopped.is_set():
+            logger.info('Consuming item..')
+            item = await self.queue.get()
+            item.token = await self.raw_upload(item.path)
+            self.items[item.cam.name].append(item)
+            await self.handle_queue_body()
+
+    async def handle_queue_body(self, shutdown=False):
+        if shutdown:
+            logger.info('Graceful photos manager shutdown..')
+        for cam, photos in self.items.items():
+            if len(photos) >= conf.google_photos.album_batch_size or (shutdown and len(photos) > 0):
+                logger.info(f'Going to handle batch for {cam}')
+                await self.handle_album(photos)
+                logger.success(f'Finished with batch for {cam}')
+                for _ in range(len(photos)):
+                    self.queue.task_done()
+                self.items[cam][:] = []
+
+    async def handle_album(self, photos: List[ImageItem]):
+        album_name = get_album_name(photos[0].path.parent)
+        album_id = await self.create_or_retrieve_album(album_name)
+        await self.batch_upload_album(album_id, photos)
+
+    async def batch_upload_album(self, album, images: List[ImageItem]):
+        empty_counter = 0
+        new_media_items = []
+        for image in images:
+            if image.token:
+                new_media_items.append({'simpleMediaItem': {'uploadToken': image.token}})
+            else:
+                logger.warning('Empty token!')
+                empty_counter += 1
+        data = {
+            'newMediaItems': new_media_items,
+            'albumId': album
         }
-        async with aiohttp.ClientSession(headers=headers) as session:
-            result = await session.post(self.upload_url, data=data)
-            token = await result.text()
-        logger.info(f'Finished uploading. File token: {token}')
-        return token
+        # TODO add retry when aborted
+        response = await self.client.as_user(self.photos.mediaItems.batchCreate(json=data))
+        logger.success(f'Images count: {len(new_media_items)} successfully added to album {album}')
+        for item in response['newMediaItemResults']:
+            status = item['status']['message']
+            if status != 'OK':
+                logger.info(item['uploadToken'])
+                logger.error(item['status'])
+            else:
+                file_name = item['mediaItem']['filename']
+                logger.success(f'OK! {file_name}')
+        results = response['newMediaItemResults']
+        if empty_counter:
+            logger.critical(f'Detected {empty_counter} empty tokens!')
+        logger.info(f'Images: {len(results)} successfully added to album {album}')
 
-    async def create_or_retrieve_album(self, photos, name):
-        albums = await self.client.as_user(photos.albums.list())
-        logger.info(f'Albums list: {albums}')
+    async def loop(self):
+        self.consumer = asyncio.create_task(self.consume())
+        await self.queue.join()
+
+    @alru_cache(maxsize=24)
+    async def create_or_retrieve_album(self, name):
+        albums = await self.client.as_user(self.photos.albums.list())
         if albums:
             for album in albums['albums']:
                 if album['title'] == name:
@@ -81,145 +152,10 @@ class GooglePhotosManager:
                     logger.info(f'Album {album_id} already exists')
                     return album_id
         album = {'album': {'title': name}}
-        result = await self.client.as_user(photos.albums.create(json=album))
+        result = await self.client.as_user(self.photos.albums.create(json=album))
         album_id = result['id']
+        logger.info(f'Album {name} -- album id {album_id}')
         return album_id
-
-    async def upload_item(self, photos, album, token, description=None):
-        logger.info(f'Adding {token} to album {album}')
-        data = {
-            'newMediaItems': [
-                {
-                    'simpleMediaItem': {
-                        'uploadToken': token
-                    }
-                },
-            ],
-            'albumId': album
-        }
-        if description:
-            data['newMediaItems'][0]['description'] = description
-        result = await self.client.as_user(photos.mediaItems.batchCreate(json=data))
-        logger.info(f'Image f{token} successfully added to album {album}')
-        return result
-
-    async def main(self):
-        await self.start()
-        creds = await self.refresh_token()
-        logger.critical(creds)
-        self.client.user_creds = creds
-        client = self.client
-        photos = await client.discover('photoslibrary', 'v1')
-        album_id = await self.create_or_retrieve_album(photos, 'test/bb')
-        token = await self.raw_upload('/home/your/path')
-        r = await self.upload_item(photos, album_id, token)
-        await self.stop()
-
-    async def _upload_raw_task(self, session, throttler, headers, path: Path):
-        async with throttler:
-            headers = {**headers}
-            headers['X-Goog-Upload-File-Name'] = str(path.name)
-            logger.info(f'Uploading file {path}')
-            with open(path, 'rb') as item:
-                data = item.read()
-            result = await session.post(self.upload_url, headers=headers, data=data)
-            response = await result.text()
-            logger.info(f'Raw upload status {result.status} response for {path} : {response}')
-        if result.status != 200:
-            logger.warning(f'Error during uploading {path} {response}')
-            return 'ERROR', str(path)
-        return str(response), str(path)
-
-    async def batch_raw_upload(self, path: Path):
-        headers = {
-            'Authorization': 'Bearer ' + self.client.user_creds.access_token,
-            'Content-Type': 'application/octet-stream',
-            'X-Goog-Upload-Protocol': 'raw',
-        }
-        start_time = time.time()
-        throttler = Throttler(rate_limit=conf.google_photos.rate_limit, period=60, retry_interval=.1)
-        tokens_tuples = await self.upload_items(throttler, headers, sorted(path.iterdir()))
-        tokens = []
-        broken_files = 0
-        for item in tokens_tuples:
-            if item[0] == 'ERROR':
-                logger.critical(f'ERROR with uploading {item[1]}')
-                broken_files += 1
-            else:
-                tokens.append(item[0])
-        logger.critical(f'BROKEN files count {broken_files}')
-        empty_count = len([x for x in tokens if x is None])
-        logger.critical(f'TOTAL TIMEEE::: {time.time() - start_time}')
-        logger.critical(f'TOTAL LENGTH:: {len(tokens)} EMPTY TOKENS {empty_count}')
-        return tokens_tuples, tokens
-
-    async def upload_items(self, throttler, headers, items):
-        connector = aiohttp.TCPConnector(limit=20)
-        tasks = []
-        async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
-            for item in items:
-                tasks.append(self._upload_raw_task(session, throttler, headers, item))
-            tokens = await asyncio.gather(*tasks, return_exceptions=True)
-        return tokens
-
-    async def batch_upload_item(self, photos, album, tokens):
-        results = []
-        empty_counter = 0
-        for chunk in chunks(tokens, 50):
-            new_media_items = []
-            for token in chunk:
-                if token:
-                    new_media_items.append({'simpleMediaItem': {'uploadToken': token}})
-                else:
-                    logger.warning('Empty token!')
-                    empty_counter += 1
-            data = {
-                'newMediaItems': new_media_items,
-                'albumId': album
-            }
-            # TODO add retry when aborted
-            response = await self.client.as_user(photos.mediaItems.batchCreate(json=data))
-            logger.info(f'Images count: {len(chunk)} successfully added to album {album}')
-            for item in response['newMediaItemResults']:
-                status = item['status']['message']
-                if status != 'OK':
-                    logger.success(item['uploadToken'])
-                    logger.error(item['status'])
-                else:
-                    file_name = item['mediaItem']['filename']
-                    logger.success(f'OK! {file_name}')
-            results.extend(response['newMediaItemResults'])
-        if empty_counter:
-            logger.critical(f'Detected {empty_counter} empty tokens!')
-        logger.info(f'All images: {len(tokens)} successfully added to album {album}')
-        return [(item['uploadToken'], item['status']) for item in results]
-
-    async def batch_upload(self, directory: Path):
-        await self.start()
-        photos = await self.client.discover('photoslibrary', 'v1')
-        album_name = get_album_name(directory)
-        album_id = await self.create_or_retrieve_album(photos, album_name)
-        tokens_tuples, tokens = await self.batch_raw_upload(directory)
-        await self.batch_upload_item(photos, album_id, tokens)
-        await self.stop()
-
-    async def refresh_token(self):
-        creds = await self.client.oauth2.refresh(self.user_cred.as_dict(), self.client_cred.as_dict())
-        self.client.user_creds = creds
-        logger.info('Access_token refreshed')
-
-
-class PhotosAgent(GooglePhotosManager):
-
-    async def start(self):
-        await super().start()
-        self.photos = await self.client.discover('photoslibrary', 'v1')
-        self.headers = {
-            'Authorization': 'Bearer ' + self.client.user_creds.access_token,
-            'Content-Type': 'application/octet-stream',
-            'X-Goog-Upload-Protocol': 'raw',
-        }
-        self.raw_session = aiohttp.ClientSession(headers=self.headers)
 
     async def raw_upload(self, path):
         logger.info(f'Uploading file {path}')
@@ -232,13 +168,3 @@ class PhotosAgent(GooglePhotosManager):
         token = await result.text()
         logger.info(f'Finished uploading. File token: {token}')
         return token
-
-    async def upload_img(self, cam: Cam, image: Path):
-        day = pendulum.today()
-        day = day.format('DD_MM_YYYY')
-        album_name = f'{cam.name}-regular-imgs-{day}'
-        if conf.debug:
-            album_name = f'TEST-{album_name}'
-        album_id = await self.create_or_retrieve_album(self.photos, album_name)
-        token = await self.raw_upload(image)
-        await self.upload_item(self.photos, album_id, token)

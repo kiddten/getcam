@@ -14,7 +14,7 @@ from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
 from shot import conf
 from shot.conf.model import Cam
-from shot.gphotos import PhotosAgent
+from shot.gphotos import GooglePhotosManager
 
 logger.add(Path(conf.root_dir) / conf.log_file)
 
@@ -151,13 +151,12 @@ async def get_img(cam: Cam, session, regular=True):
     return image
 
 
-async def get_img_and_sync(cam: Cam, session, agent: PhotosAgent, regular=True):
+async def get_img_and_sync(cam: Cam, session, agent: GooglePhotosManager, regular=True):
     image = await get_img(cam, session, regular)
     if not image:
         return
-    logger.info(f'Going to sync img to gphotos {image}')
     try:
-        await agent.upload_img(cam, image)
+        await agent.produce(cam, image)
     except Exception:
         logger.exception(f'Error during image sync {image}')
 

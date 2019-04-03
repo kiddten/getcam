@@ -31,6 +31,7 @@ class GooglePhotos:
     user: User
     client: Client
     rate_limit: int
+    album_batch_size: int
 
 
 @dataclass_json

@@ -150,6 +150,9 @@ class CamBot:
         self._bot.add_callback(r'remove (.+)', self.remove_folder)
         self._bot.callback(unhandled_callbacks)
 
+    def stop(self):
+        self._bot.stop()
+
     @ThreadSwitcherWithDB.optimized
     async def daily_stats(self):
         markdown_result = await stats_handler(pendulum.yesterday())

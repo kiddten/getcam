@@ -1,7 +1,9 @@
 import asyncio
 import datetime
 import logging
+import signal
 import sys
+from asyncio.runners import _cancel_all_tasks
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -9,8 +11,8 @@ from loguru import logger
 
 from shot import conf
 from shot.bot import CamBot
-from shot.gphotos import PhotosAgent
-from shot.shooter import get_img_and_sync, get_img
+from shot.gphotos import GooglePhotosManager
+from shot.shooter import get_img_and_sync
 
 
 def init_logging():
@@ -35,36 +37,47 @@ def init_logging():
     logging.getLogger().addHandler(InterceptHandler())
 
 
-async def main(run_scheduler=True):
-    # agent = PhotosAgent()
-    # await agent.start()
+def run():
+    def shutdown_by_signal(sig):
+        logger.info(f'Got {sig} signal. Shutting down..')
+        loop.stop()
+
+    init_logging()
+    logger.info('Running getcam service')
+    loop = asyncio.get_event_loop()
+    loop.set_debug(conf.debug)
+
+    for sig_name in 'SIGINT', 'SIGTERM':
+        loop.add_signal_handler(getattr(signal, sig_name), shutdown_by_signal, sig_name)
+
+    agent = GooglePhotosManager()
     bot = CamBot()
-    if run_scheduler:
-        scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler()
+
+    async def main():
+        await agent.start()
         scheduler.start()
-        # for cam in conf.cameras_list:
-        #     scheduler.add_job(
-        #         get_img_and_sync, 'interval', (cam, bot.session, agent),
-        #         seconds=cam.interval, next_run_time=datetime.datetime.now()
-        #     )
-        # scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         for cam in conf.cameras_list:
             scheduler.add_job(
-                get_img, 'interval', (cam, bot.session),
+                get_img_and_sync, 'interval', (cam, bot.session, agent),
                 seconds=cam.interval, next_run_time=datetime.datetime.now()
             )
+        scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
-    bot_loop = asyncio.create_task(bot.loop())
-    alive_message = asyncio.create_task(bot.notify_admins('Ready! Use /menu, /stats'))
-    await asyncio.wait([bot_loop, alive_message])
+        asyncio.create_task(bot.loop())
+        asyncio.create_task(agent.loop())
+        await bot.notify_admins('Ready! Use /menu, /stats')
 
-
-def run():
-    init_logging()
-    logger.info('Running getcam service')
-    asyncio.run(main())
+    loop.run_until_complete(main())
+    loop.run_forever()
+    bot.stop()
+    scheduler.shutdown()
+    loop.run_until_complete(agent.stop())
+    _cancel_all_tasks(loop)
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    logger.success('Service has been stopped')
 
 
 if __name__ == '__main__':
