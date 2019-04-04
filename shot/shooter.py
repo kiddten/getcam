@@ -47,6 +47,7 @@ class CamHandler:
     session: aiohttp.ClientSession
     agent: Optional['gphotos.GooglePhotosManager'] = None
     previous_image: Optional[str] = None
+    path: Optional[Path] = None
 
     async def get_img(self, regular=True):
         logger.info(f'Img handler: {self.cam.name}')
@@ -56,52 +57,61 @@ class CamHandler:
         path = path / regular / 'imgs' / today
         path.mkdir(parents=True, exist_ok=True)
         now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
-        name = path / f'{now}.jpg'
-        logger.info(f'Attempt to get img {name}')
+        self.path = path / f'{now}.jpg'
+        logger.info(f'Attempt to get img {self.path}')
         try:
             response = await self.session.get(self.cam.url)
         except Exception:
-            logger.exception(f'Exception during getting img {name}')
+            logger.exception(f'Exception during getting img {self.path}')
             return
         if response.status != 200:
             body = await response.read()
-            logger.warning(f'Can not get img {name}: response status {response.status} body: {body}')
+            logger.warning(f'Can not get img {self.path}: response status {response.status} body: {body}')
             return
         data = await response.read()
         if not data:
-            logger.warning(f'Empty file data {name}')
+            logger.warning(f'Empty file data {self.path}')
             return
         if self.is_the_same(data):
-            logger.warning(f'Got the same image again {name}')
+            logger.warning(f'Got the same image again {self.path}')
             return
-        image = await self.save_img(name, data)
-        logger.info(f'Finished with {name}')
+        image = await self.save_img(data)
+        logger.info(f'Finished with {self.path}')
         return image
 
     def is_the_same(self, data):
         if not self.previous_image:
-            self.previous_image = hashlib.md5(data).hexdigest()
-            return False
+            last = None
+            try:
+                last = sorted(self.path.parent.iterdir())[-1]
+            except IndexError:
+                pass
+            if not last:
+                self.previous_image = hashlib.md5(data).hexdigest()
+                return False
+            with open(last, 'rb') as _last:
+                last_data = _last.read()
+            self.previous_image = hashlib.md5(last_data).hexdigest()
         current = hashlib.md5(data).hexdigest()
         equal = current == self.previous_image
         if not equal:
             self.previous_image = current
         return equal
 
-    async def save_img(self, path, data):
+    async def save_img(self, data):
         if not self.cam.resize:
-            with open(path, 'wb') as f:
+            with open(self.path, 'wb') as f:
                 f.write(data)
-            return ImageItem(self.cam, path)
+            return ImageItem(self.cam, self.path)
         # path data/cam_name/imgs/dd_mm_yyyy/dd_mm_yyyy_timestamp.jpg
-        original = path.parent.parent / 'original' / path.parent.name / path.name
+        original = self.path.parent.parent / 'original' / self.path.parent.name / self.path.name
         original.parent.mkdir(parents=True, exist_ok=True)
         with open(original, 'wb') as f:
             f.write(data)
         size = tuple(int(i) for i in self.cam.resize.split('x'))
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: resize_img(data, size, path))
-        return ImageItem(self.cam, path, original_path=original)
+        await loop.run_in_executor(None, lambda: resize_img(data, size, self.path))
+        return ImageItem(self.cam, self.path, original_path=original)
 
     async def get_img_and_sync(self, regular=True):
         image = await self.get_img(regular)
