@@ -215,7 +215,8 @@ class CamBot:
         if not image:
             await chat.send_text(f'Error during image request for {cam.name}')
             return
-        with open(image.path, 'rb') as image:
+        path = image.original_path if cam.resize else image.path
+        with open(path, 'rb') as image:
             await chat.send_photo(image)
 
     async def img_callback(self, chat, cq, match):
