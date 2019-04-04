@@ -32,6 +32,8 @@ class GooglePhotos:
     client: Client
     rate_limit: int
     album_batch_size: int
+    raw_upload_timeout: int = 60
+    handle_album_timeout: int = 3 * 60
 
 
 @dataclass_json

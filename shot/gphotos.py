@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List
 
 import aiohttp
+import async_timeout
 from aiogoogle import Aiogoogle
 from aiogoogle.sessions.aiohttp_session import AiohttpSession
 from async_lru import alru_cache
@@ -80,7 +81,11 @@ class GooglePhotosManager:
         while not self._stopped.is_set():
             logger.info('Consuming item..')
             item = await self.queue.get()
-            await self.upload_image_item(item)
+            try:
+                with async_timeout.timeout(conf.google_photos.raw_upload_timeout):
+                    await self.upload_image_item(item)
+            except asyncio.TimeoutError:
+                logger.warning(f'Timed out error during upload {item.path}')
             self.items[item.cam.name].append(item)
             await self.handle_queue_body()
 
@@ -96,7 +101,12 @@ class GooglePhotosManager:
         for cam, photos in self.items.items():
             if len(photos) >= conf.google_photos.album_batch_size or (shutdown and len(photos) > 0):
                 logger.info(f'Going to handle batch for {cam}')
-                await self.handle_album(photos)
+                try:
+                    with async_timeout.timeout(conf.google_photos.handle_album_timeout):
+                        await self.handle_album(photos)
+                except asyncio.TimeoutError:
+                    logger.warning(f'Timed out error during handling batch for {cam}')
+                    return
                 logger.success(f'Finished with batch for {cam}')
                 for _ in range(len(photos)):
                     self.queue.task_done()
@@ -152,7 +162,7 @@ class GooglePhotosManager:
             for album in albums['albums']:
                 if album['title'] == name:
                     album_id = album['id']
-                    logger.info(f'Album {album_id} already exists')
+                    logger.info(f'Album {album_id} -- {name} already exists')
                     return album_id
         album = {'album': {'title': name}}
         result = await self.client.as_user(self.photos.albums.create(json=album))
@@ -169,5 +179,5 @@ class GooglePhotosManager:
         headers['Authorization'] = f'Bearer {self.client.user_creds.access_token}'
         result = await self.raw_session.post(self.upload_url, headers=headers, data=data)
         token = await result.text()
-        logger.info(f'Finished uploading. File token: {token}')
+        logger.info(f'Finished uploading {path}. File token: {token}')
         return token

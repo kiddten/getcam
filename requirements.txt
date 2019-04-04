@@ -13,3 +13,4 @@ pendulum==2.0.4
 aiohttp
 aiogoogle
 async_lru
+async_timeout
