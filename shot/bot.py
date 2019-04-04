@@ -15,7 +15,7 @@ from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import get_img, make_movie, make_weekly_movie, stats
+from shot.shooter import CamHandler, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
 
 
@@ -211,7 +211,7 @@ class CamBot:
             await self.img_handler(chat, cam)
 
     async def img_handler(self, chat: Chat, cam):
-        image = await get_img(cam, self._bot.session, regular=False)
+        image = await CamHandler(cam, self._bot.session).get_img(regular=False)
         if not image:
             await chat.send_text(f'Error during image request for {cam.name}')
             return

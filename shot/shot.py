@@ -12,7 +12,7 @@ from loguru import logger
 from shot import conf
 from shot.bot import CamBot
 from shot.gphotos import GooglePhotosManager
-from shot.shooter import get_img_and_sync
+from shot.shooter import CamHandler
 
 
 def init_logging():
@@ -53,14 +53,15 @@ def run():
     agent = GooglePhotosManager()
     bot = CamBot()
     scheduler = AsyncIOScheduler()
+    handlers = [CamHandler(cam, bot.session, agent) for cam in conf.cameras_list]
 
     async def main():
         await agent.start()
         scheduler.start()
-        for cam in conf.cameras_list:
+        for handler in handlers:
             scheduler.add_job(
-                get_img_and_sync, 'interval', (cam, bot.session, agent),
-                seconds=cam.interval, next_run_time=datetime.datetime.now()
+                handler.get_img_and_sync, 'interval', seconds=handler.cam.interval,
+                next_run_time=datetime.datetime.now()
             )
         scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)

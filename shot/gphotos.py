@@ -72,7 +72,7 @@ class GooglePhotosManager:
         self.client.user_creds = creds
         logger.info('Access_token refreshed')
 
-    async def produce(self, cam, image: ImageItem):
+    async def produce(self, image: ImageItem):
         logger.debug(f'Putting item to queue {image}')
         await self.queue.put(image)
 

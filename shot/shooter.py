@@ -1,10 +1,12 @@
 import asyncio
 import datetime
+import hashlib
 import io
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
+import aiohttp
 import imageio
 import pendulum
 from PIL import Image
@@ -15,6 +17,9 @@ from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
 from shot import conf
 from shot.conf.model import Cam
+
+if TYPE_CHECKING:
+    from shot import gphotos
 
 logger.add(Path(conf.root_dir) / conf.log_file)
 
@@ -34,6 +39,78 @@ class ImageItem:
     token: Optional[str] = None
     original_path: Optional[str] = None
     original_token: Optional[str] = None
+
+
+@dataclass
+class CamHandler:
+    cam: Cam
+    session: aiohttp.ClientSession
+    agent: Optional['gphotos.GooglePhotosManager'] = None
+    previous_image: Optional[str] = None
+
+    async def get_img(self, regular=True):
+        logger.info(f'Img handler: {self.cam.name}')
+        regular = 'regular' if regular else ''
+        today = datetime.datetime.now().strftime('%d_%m_%Y')
+        path = Path(conf.root_dir) / 'data' / self.cam.name
+        path = path / regular / 'imgs' / today
+        path.mkdir(parents=True, exist_ok=True)
+        now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
+        name = path / f'{now}.jpg'
+        logger.info(f'Attempt to get img {name}')
+        try:
+            response = await self.session.get(self.cam.url)
+        except Exception:
+            logger.exception(f'Exception during getting img {name}')
+            return
+        if response.status != 200:
+            body = await response.read()
+            logger.warning(f'Can not get img {name}: response status {response.status} body: {body}')
+            return
+        data = await response.read()
+        if not data:
+            logger.warning(f'Empty file data {name}')
+            return
+        if self.is_the_same(data):
+            logger.warning(f'Got the same image again {name}')
+            return
+        image = await self.save_img(name, data)
+        logger.info(f'Finished with {name}')
+        return image
+
+    def is_the_same(self, data):
+        if not self.previous_image:
+            self.previous_image = hashlib.md5(data).hexdigest()
+            return False
+        current = hashlib.md5(data).hexdigest()
+        equal = current == self.previous_image
+        if not equal:
+            self.previous_image = current
+        return equal
+
+    async def save_img(self, path, data):
+        if not self.cam.resize:
+            with open(path, 'wb') as f:
+                f.write(data)
+            return ImageItem(self.cam, path)
+        # path data/cam_name/imgs/dd_mm_yyyy/dd_mm_yyyy_timestamp.jpg
+        original = path.parent.parent / 'original' / path.parent.name / path.name
+        original.parent.mkdir(parents=True, exist_ok=True)
+        with open(original, 'wb') as f:
+            f.write(data)
+        size = tuple(int(i) for i in self.cam.resize.split('x'))
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: resize_img(data, size, path))
+        return ImageItem(self.cam, path, original_path=original)
+
+    async def get_img_and_sync(self, regular=True):
+        image = await self.get_img(regular)
+        if not image:
+            return
+        try:
+            await self.agent.produce(image)
+        except Exception:
+            logger.exception(f'Error during image sync {image}')
 
 
 def seq_middle(seq):
@@ -131,59 +208,6 @@ def make_weekly_movie(cam: Cam, executor):
     clip.write_videofile(str(movie_path), audio=False)
     logger.info(f'Finished with clip for weekly movie ww{start.week_of_year}')
     return Movie(clip.h, clip.w, movie_path, sequence[seq_middle(sequence)])
-
-
-async def get_img(cam: Cam, session, regular=True):
-    logger.info(f'Img handler: {cam.name}')
-    regular = 'regular' if regular else ''
-    today = datetime.datetime.now().strftime('%d_%m_%Y')
-    path = Path(conf.root_dir) / 'data' / cam.name
-    path = path / regular / 'imgs' / today
-    path.mkdir(parents=True, exist_ok=True)
-    now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
-    name = path / f'{now}.jpg'
-    logger.info(f'Attempt to get img {name}')
-    try:
-        response = await session.get(cam.url)
-    except Exception:
-        logger.exception(f'Exception during getting img {name}')
-        return
-    if response.status != 200:
-        logger.warning(f'Can not get img {name}: response status {response.status}')
-        return
-    data = await response.read()
-    if not data:
-        logger.warning(f'Empty file data {name}')
-        return
-    image = await save_img(cam, name, data)
-    logger.info(f'Finished with {name}')
-    return image
-
-
-async def get_img_and_sync(cam: Cam, session, agent, regular=True):
-    image = await get_img(cam, session, regular)
-    if not image:
-        return
-    try:
-        await agent.produce(cam, image)
-    except Exception:
-        logger.exception(f'Error during image sync {image}')
-
-
-async def save_img(cam: Cam, path, data):
-    if not cam.resize:
-        with open(path, 'wb') as f:
-            f.write(data)
-        return ImageItem(cam, path)
-    # path data/cam_name/imgs/dd_mm_yyyy/dd_mm_yyyy_timestamp.jpg
-    original = path.parent.parent / 'original' / path.parent.name / path.name
-    original.parent.mkdir(parents=True, exist_ok=True)
-    with open(original, 'wb') as f:
-        f.write(data)
-    size = tuple(int(i) for i in cam.resize.split('x'))
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, lambda: resize_img(data, size, path))
-    return ImageItem(cam, path, original_path=original)
 
 
 def resize_img(data, size, path):
