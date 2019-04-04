@@ -3,6 +3,7 @@ import datetime
 import io
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import imageio
 import pendulum
@@ -14,7 +15,6 @@ from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
 from shot import conf
 from shot.conf.model import Cam
-from shot.gphotos import GooglePhotosManager
 
 logger.add(Path(conf.root_dir) / conf.log_file)
 
@@ -25,6 +25,15 @@ class Movie:
     width: int
     path: Path
     thumb: Path
+
+
+@dataclass
+class ImageItem:
+    cam: Cam
+    path: Path
+    token: Optional[str] = None
+    original_path: Optional[str] = None
+    original_token: Optional[str] = None
 
 
 def seq_middle(seq):
@@ -151,7 +160,7 @@ async def get_img(cam: Cam, session, regular=True):
     return image
 
 
-async def get_img_and_sync(cam: Cam, session, agent: GooglePhotosManager, regular=True):
+async def get_img_and_sync(cam: Cam, session, agent, regular=True):
     image = await get_img(cam, session, regular)
     if not image:
         return
@@ -165,7 +174,7 @@ async def save_img(cam: Cam, path, data):
     if not cam.resize:
         with open(path, 'wb') as f:
             f.write(data)
-        return path
+        return ImageItem(cam, path)
     # path data/cam_name/imgs/dd_mm_yyyy/dd_mm_yyyy_timestamp.jpg
     original = path.parent.parent / 'original' / path.parent.name / path.name
     original.parent.mkdir(parents=True, exist_ok=True)
@@ -174,7 +183,7 @@ async def save_img(cam: Cam, path, data):
     size = tuple(int(i) for i in cam.resize.split('x'))
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, lambda: resize_img(data, size, path))
-    return original
+    return ImageItem(cam, path, original_path=original)
 
 
 def resize_img(data, size, path):

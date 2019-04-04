@@ -214,7 +214,8 @@ class CamBot:
         image = await get_img(cam, self._bot.session, regular=False)
         if not image:
             await chat.send_text(f'Error during image request for {cam.name}')
-        with open(image, 'rb') as image:
+            return
+        with open(image.path, 'rb') as image:
             await chat.send_photo(image)
 
     async def img_callback(self, chat, cq, match):

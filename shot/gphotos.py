@@ -1,8 +1,7 @@
 import asyncio
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import aiohttp
 from aiogoogle import Aiogoogle
@@ -11,14 +10,7 @@ from async_lru import alru_cache
 from loguru import logger
 
 from shot import conf
-from shot.conf import Cam
-
-
-@dataclass
-class ImageItem:
-    cam: Cam
-    path: Path
-    token: Optional[str] = None
+from shot.shooter import ImageItem
 
 
 def get_album_name(path: Path):
@@ -80,17 +72,23 @@ class GooglePhotosManager:
         self.client.user_creds = creds
         logger.info('Access_token refreshed')
 
-    async def produce(self, cam, image):
+    async def produce(self, cam, image: ImageItem):
         logger.debug(f'Putting item to queue {image}')
-        await self.queue.put(ImageItem(cam, image))
+        await self.queue.put(image)
 
     async def consume(self):
         while not self._stopped.is_set():
             logger.info('Consuming item..')
             item = await self.queue.get()
-            item.token = await self.raw_upload(item.path)
+            await self.upload_image_item(item)
             self.items[item.cam.name].append(item)
             await self.handle_queue_body()
+
+    async def upload_image_item(self, item: ImageItem):
+        item.token = await self.raw_upload(item.path)
+        if not item.cam.resize:
+            return
+        item.original_token = await self.raw_upload(item.original_path)
 
     async def handle_queue_body(self, shutdown=False):
         if shutdown:
@@ -108,13 +106,18 @@ class GooglePhotosManager:
         album_name = get_album_name(photos[0].path.parent)
         album_id = await self.create_or_retrieve_album(album_name)
         await self.batch_upload_album(album_id, photos)
+        if photos[0].cam.resize:
+            album_name = get_album_name(photos[0].original_path.parent)
+            album_id = await self.create_or_retrieve_album(album_name)
+            await self.batch_upload_album(album_id, photos, token_get='original_token')
 
-    async def batch_upload_album(self, album, images: List[ImageItem]):
+    async def batch_upload_album(self, album, images: List[ImageItem], token_get='token'):
         empty_counter = 0
         new_media_items = []
         for image in images:
-            if image.token:
-                new_media_items.append({'simpleMediaItem': {'uploadToken': image.token}})
+            token = getattr(image, token_get)
+            if token:
+                new_media_items.append({'simpleMediaItem': {'uploadToken': token}})
             else:
                 logger.warning('Empty token!')
                 empty_counter += 1
