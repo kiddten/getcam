@@ -51,7 +51,7 @@ def run():
         loop.add_signal_handler(getattr(signal, sig_name), shutdown_by_signal, sig_name)
 
     agent = GooglePhotosManager()
-    bot = CamBot()
+    bot = CamBot(agent=agent)
     scheduler = AsyncIOScheduler()
     handlers = [CamHandler(cam, bot.session, agent) for cam in conf.cameras_list]
 

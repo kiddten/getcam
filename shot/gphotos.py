@@ -5,6 +5,7 @@ from typing import List
 
 import aiohttp
 import async_timeout
+import pendulum
 from aiogoogle import Aiogoogle
 from aiogoogle.sessions.aiohttp_session import AiohttpSession
 from async_lru import alru_cache
@@ -181,3 +182,25 @@ class GooglePhotosManager:
         token = await result.text()
         logger.info(f'Finished uploading {path}. File token: {token}')
         return token
+
+    async def album_stats(self, day=None):
+        day = day or pendulum.today()
+        day = day.format('DD_MM_YYYY')
+        root = Path(conf.root_dir) / 'data'
+        result = {}
+        for cam in conf.cameras.keys():
+            path = root / cam / 'regular' / 'imgs' / day
+            count = await self.album_media_items_count(path)
+            result[cam] = count
+        return result
+
+    async def album_media_items_count(self, name):
+        # https://photoslibrary.googleapis.com/v1/albums/{albumId}
+        album_name = get_album_name(name)
+        album_id = await self.create_or_retrieve_album(album_name)
+        response = await self.client.as_user(self.photos.albums.get(albumId=album_id, fields='mediaItemsCount'))
+        try:
+            response = response['mediaItemsCount']
+        except TypeError:
+            response = 0
+        return response

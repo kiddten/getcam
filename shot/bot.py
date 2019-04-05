@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pendulum
 from aiotg import Bot, Chat
@@ -17,6 +18,9 @@ from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import CamHandler, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
+
+if TYPE_CHECKING:
+    from shot import gphotos
 
 
 async def send_video(chat, clip):
@@ -102,33 +106,15 @@ async def reg(chat: Chat, match):
     await chat.send_text('You are successfully registered!')
 
 
-async def stats_command(chat: Chat, match):
-    markdown_result = await stats_handler(pendulum.today())
-    await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
-
-
-async def stats_handler(day=None):
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, lambda: stats(day))
-    markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
-    for d in result['cameras']:
-        stat = result['cameras'][d]
-        count, size = stat['count'], convert_size(stat['size'])
-        avg = convert_size(stat['size'] / count)
-        markdown_result.append(f'*{d}*: {count} -- {size} -- {avg} ')
-    total = convert_size(result['total'])
-    markdown_result.append(f'*total*: {total}')
-    return markdown_result
-
-
 class CamBot:
 
-    def __init__(self):
+    def __init__(self, agent: 'gphotos.GooglePhotosManager'):
         self._bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
         self.session = self._bot.session
         self.loop = self._bot.loop
         self.menu_markup = Menu()
         self.init_handlers()
+        self.agent = agent
 
     def init_handlers(self):
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
@@ -136,7 +122,7 @@ class CamBot:
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
-        self._bot.add_command(r'/stats', stats_command)
+        self._bot.add_command(r'/stats', self.stats_command)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
@@ -155,7 +141,7 @@ class CamBot:
 
     @ThreadSwitcherWithDB.optimized
     async def daily_stats(self):
-        markdown_result = await stats_handler(pendulum.yesterday())
+        markdown_result = await self.stats_handler(pendulum.yesterday())
         await self.notify_admins('\n'.join(markdown_result), parse_mode='Markdown')
 
     @ThreadSwitcherWithDB.optimized
@@ -300,3 +286,26 @@ class CamBot:
         folder = Path(conf.root_dir) / 'data' / folder
         shutil.rmtree(folder)
         await chat.send_text('Successfully removed!')
+
+    async def stats_command(self, chat: Chat, match):
+        try:
+            markdown_result = await self.stats_handler(pendulum.today())
+        except Exception:
+            await chat.send_text('Error during request stats')
+            return
+        await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
+
+    async def stats_handler(self, day=None):
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, lambda: stats(day))
+        album_stats = await self.agent.album_stats(day)
+        markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
+        for d in result['cameras']:
+            stat = result['cameras'][d]
+            count, size = stat['count'], convert_size(stat['size'])
+            avg = convert_size(stat['size'] / count)
+            media_count = album_stats[d]
+            markdown_result.append(f'*{d}*: {count} - {media_count} - {size} - {avg} ')
+        total = convert_size(result['total'])
+        markdown_result.append(f'*total*: {total}')
+        return markdown_result
