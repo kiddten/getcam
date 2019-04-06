@@ -118,6 +118,7 @@ class CamBot:
 
     def init_handlers(self):
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
+        self._bot.add_command(r'/check (.+) (.+)', self.check_album)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
@@ -309,3 +310,10 @@ class CamBot:
         total = convert_size(result['total'])
         markdown_result.append(f'*total*: {total}')
         return markdown_result
+
+    async def check_album(self, chat, match):
+        cam = await get_cam(match.group(1), chat)
+        if not cam:
+            return
+        day = match.group(2)
+        await self.agent.check_album(cam, day)

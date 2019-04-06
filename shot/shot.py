@@ -35,6 +35,7 @@ def init_logging():
 
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger().addHandler(InterceptHandler())
+    logging.getLogger('backoff').setLevel(logging.DEBUG)
 
 
 def run():

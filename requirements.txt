@@ -14,3 +14,4 @@ aiohttp
 aiogoogle
 async_lru
 async_timeout
+backoff

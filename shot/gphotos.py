@@ -1,14 +1,18 @@
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
+import aiogoogle
 import aiohttp
 import async_timeout
+import backoff
 import pendulum
 from aiogoogle import Aiogoogle
 from aiogoogle.sessions.aiohttp_session import AiohttpSession
 from async_lru import alru_cache
+from asyncio_throttle import Throttler
 from loguru import logger
 
 from shot import conf
@@ -27,10 +31,23 @@ def get_album_name(path: Path):
     return name
 
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
 class _Aiogoogle(Aiogoogle):
 
     async def send(self, *args, **kwargs):
         return await self.active_session.send(*args, **kwargs)
+
+
+@dataclass
+class PhotoItem:
+    path: Path
+    token: Optional[str] = None
+    status: Optional[str] = None
 
 
 class GooglePhotosManager:
@@ -111,7 +128,7 @@ class GooglePhotosManager:
                 logger.success(f'Finished with batch for {cam}')
                 for _ in range(len(photos)):
                     self.queue.task_done()
-                self.items[cam][:] = []
+                photos[:] = []
 
     async def handle_album(self, photos: List[ImageItem]):
         album_name = get_album_name(photos[0].path.parent)
@@ -204,3 +221,124 @@ class GooglePhotosManager:
         except TypeError:
             response = 0
         return response
+
+    async def album_info(self, album_id):
+        logger.info(f'Getting album content for {album_id}')
+        # POST https://photoslibrary.googleapis.com/v1/mediaItems:search
+        items = []
+        data = {'albumId': album_id, 'pageSize': 100}
+        first_page = await self.client.as_user(self.photos.mediaItems.search(json=data))
+        if not first_page:
+            return items
+        for item in first_page['mediaItems']:
+            items.append(item['filename'])
+        if not first_page.get('nextPageToken'):
+            return items
+        logger.success(len(items))
+        next_page = first_page['nextPageToken']
+        while next_page:
+            data['pageToken'] = next_page
+            page = await self.client.as_user(self.photos.mediaItems.search(json=data))
+            for item in page['mediaItems']:
+                items.append(item['filename'])
+            logger.success(len(items))
+            try:
+                next_page = page['nextPageToken']
+            except KeyError:
+                next_page = None
+        return items
+
+    async def check_album(self, cam, day):
+        root = Path(conf.root_dir) / 'data'
+        path = root / cam.name / 'regular' / 'imgs' / day
+        logger.info(f'Checking album {path}')
+        album_name = get_album_name(path)
+        album_id = await self.create_or_retrieve_album(album_name)
+        album_items = await self.album_info(album_id)
+        logger.info(f'Remote list: {album_items}')
+        local_items = [item.name for item in path.iterdir()]
+        logger.info(f'Local list: {local_items}')
+        diff = set(local_items) - set(album_items)
+        items_in_queue = [item.path.name for item in self.items[cam.name]]
+        logger.info(f'Queue items list: {items_in_queue}')
+        diff = diff - set(items_in_queue)
+        logger.info(f'There are {len(diff)} items should be uploaded {diff}')
+        if diff:
+            await self.upload_missing_images(album_id, [path / item for item in diff])
+
+    async def upload_missing_images(self, album_id: str, images: List[Path]):
+        photo_items = [PhotoItem(image) for image in images]
+        await self.batch_raw_upload(photo_items)
+        await self.batch_upload_item(album_id, photo_items)
+
+    async def batch_raw_upload(self, images: List[PhotoItem]):
+        throttler = Throttler(rate_limit=conf.google_photos.rate_limit, period=60, retry_interval=.1)
+        await self.upload_items(throttler, images)
+
+    async def upload_items(self, throttler, items: List[PhotoItem]):
+        connector = aiohttp.TCPConnector(limit=20)
+        tasks = []
+        async with aiohttp.ClientSession(connector=connector, headers=self.headers) as session:
+            for item in items:
+                tasks.append(self._upload_raw_task(session, throttler, item))
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _upload_raw_task(self, session, throttler, item: PhotoItem):
+        async with throttler:
+            logger.info(f'Uploading file {item.path}')
+            headers = {**self.headers}
+            headers['X-Goog-Upload-File-Name'] = str(item.path.name)
+            headers['Authorization'] = f'Bearer {self.client.user_creds.access_token}'
+            with open(item.path, 'rb') as _item:
+                data = _item.read()
+            result = await session.post(self.upload_url, headers=headers, data=data)
+            if result.status != 200:
+                body = await result.read()
+                logger.warning(f'Error during raw uploading {item.path} {body}')
+                item.error = True
+                return
+            token = await result.text()
+            logger.success(f'Got token for {item.path} : {token}')
+        item.token = token
+
+    async def batch_upload_item(self, album_id, photo_items: List[PhotoItem]):
+        results = []
+        empty_counter = 0
+        for chunk in chunks(photo_items, 50):
+            new_media_items = []
+            for item in chunk:
+                if item.token:
+                    new_media_items.append({'simpleMediaItem': {'uploadToken': item.token}})
+                else:
+                    logger.warning('Empty token!')
+                    empty_counter += 1
+            data = {
+                'newMediaItems': new_media_items,
+                'albumId': album_id
+            }
+            response = await self.media_items_batch_create(data)
+            # try:
+            #     response = await self.client.as_user(self.photos.mediaItems.batchCreate(json=data))
+            # except aiogoogle.excs.HTTPError:
+            #     logger.exception('Got HTTP error during API batch create')
+            #     logger.info(f'Failed to sync following items {photo_items}')
+            #     return
+            count = 0
+            for item in response['newMediaItemResults']:
+                status = item['status']['message']
+                if status != 'OK':
+                    logger.success(item['uploadToken'])
+                    logger.error(item['status'])
+                else:
+                    file_name = item['mediaItem']['filename']
+                    logger.success(f'OK! {file_name}')
+                    count += 1
+            logger.info(f'Images {count} successfully added to album {album_id}')
+            results.extend(response['newMediaItemResults'])
+        if empty_counter:
+            logger.critical(f'Detected {empty_counter} empty tokens!')
+        logger.info(f'Finished handling batch {len(photo_items)} with album {album_id}')
+
+    @backoff.on_exception(backoff.expo, aiogoogle.excs.HTTPError, max_time=60 * 5)
+    async def media_items_batch_create(self, data):
+        return await self.client.as_user(self.photos.mediaItems.batchCreate(json=data))
