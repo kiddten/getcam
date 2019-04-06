@@ -67,6 +67,7 @@ class GooglePhotosManager:
         self._stopped = asyncio.Event()
         self.consumer = None
         self.items = defaultdict(list)
+        self.albums_cache = None
 
     async def start(self):
         logger.debug('Init session')
@@ -173,11 +174,40 @@ class GooglePhotosManager:
         self.consumer = asyncio.create_task(self.consume())
         await self.queue.join()
 
-    @alru_cache(maxsize=24)
+    async def photos_albums_list(self):
+        albums = []
+        first_page = await self.client.as_user(self.photos.albums.list(pageSize=50))
+        albums.extend(first_page['albums'])
+        if not first_page.get('nextPageToken'):
+            return albums
+        next_page = first_page['nextPageToken']
+        while next_page:
+            logger.info('Getting next albums page..')
+            page = await self.client.as_user(self.photos.albums.list(pageSize=50, pageToken=next_page))
+            albums.extend(page['albums'])
+            try:
+                next_page = page['nextPageToken']
+            except KeyError:
+                next_page = None
+        logger.info(f'Got info about {len(albums)} albums')
+        return albums
+
+    @alru_cache(maxsize=48)
     async def create_or_retrieve_album(self, name):
-        albums = await self.client.as_user(self.photos.albums.list())
-        if albums:
-            for album in albums['albums']:
+        cache_updated = False
+        if not self.albums_cache:
+            self.albums_cache = await self.photos_albums_list()
+            cache_updated = True
+        if self.albums_cache:
+            for album in self.albums_cache:
+                if album['title'] == name:
+                    album_id = album['id']
+                    logger.info(f'Album {album_id} -- {name} already exists')
+                    return album_id
+        if not cache_updated:
+            self.albums_cache = await self.photos_albums_list()
+        if self.albums_cache:
+            for album in self.albums_cache:
                 if album['title'] == name:
                     album_id = album['id']
                     logger.info(f'Album {album_id} -- {name} already exists')
