@@ -119,6 +119,7 @@ class CamBot:
     def init_handlers(self):
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
         self._bot.add_command(r'/check (.+) (.+)', self.check_album)
+        self._bot.add_command(r'/full_check (.+)', self.full_check)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
@@ -311,7 +312,10 @@ class CamBot:
         for d in result['cameras']:
             stat = result['cameras'][d]
             count, size = stat['count'], convert_size(stat['size'])
-            avg = convert_size(stat['size'] / count)
+            if count:
+                avg = convert_size(stat['size'] / count)
+            else:
+                avg = 0
             media_count = album_stats[d]
             markdown_result.append(f'*{d}*: {count} - {media_count} - {size} - {avg} ')
         total = convert_size(result['total'])
@@ -324,3 +328,11 @@ class CamBot:
             return
         day = match.group(2)
         await self.agent.check_album(cam, day)
+
+    async def full_check(self, chat, match):
+        day = match.group(1)
+        logger.info(f'Going to full check for {day}')
+        for cam in conf.cameras_list:
+            await self.agent.check_album(cam, day)
+            await chat.send_text(f'Finished with {cam.name} -- {day}')
+        logger.info(f'Finished full check for {day}')

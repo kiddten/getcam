@@ -302,7 +302,11 @@ class GooglePhotosManager:
             await self._check_album(path, cam)
 
     async def _check_album(self, path, cam):
+        if not path.exists():
+            logger.info(f'Skipping check {path} since dir is not exists')
+            return
         album_name = get_album_name(path)
+        # TODO dont create album
         album_id = await self.create_or_retrieve_album(album_name)
         album_items = await self.album_info(album_id)
         logger.info(f'Remote list: {album_items}')

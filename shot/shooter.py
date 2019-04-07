@@ -248,6 +248,8 @@ def stats(day=None):
 
 
 def get_count_and_size(path: Path):
+    if not path.exists():
+        return 0, 0
     total_size = 0
     count = 0
     for p in path.iterdir():
