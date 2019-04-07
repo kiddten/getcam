@@ -298,6 +298,7 @@ class CamBot:
         try:
             markdown_result = await self.stats_handler(day)
         except Exception:
+            logger.exception('Error during stats request')
             await chat.send_text('Error during request stats')
             return
         await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
