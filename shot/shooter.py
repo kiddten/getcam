@@ -235,13 +235,22 @@ def stats(day=None):
     result = {'cameras': {}}
     total = 0
     for cam in conf.cameras.keys():
-        total_size = 0
-        count = 0
-        path = root / cam / 'regular' / 'imgs' / day
-        for p in path.iterdir():
-            total_size += p.stat().st_size
-            count += 1
+        root_path = root / cam / 'regular' / 'imgs'
+        count, total_size = get_count_and_size(root_path / day)
         result['cameras'][cam] = {'size': total_size, 'count': count}
         total += total_size
+        if conf.cameras[cam].resize:
+            original_count, original_total_size = get_count_and_size(root_path / 'original' / day)
+            result['cameras'][f'{cam}-original'] = {'size': original_count, 'count': original_total_size}
+            total += original_total_size
     result['total'] = total
     return result
+
+
+def get_count_and_size(path: Path):
+    total_size = 0
+    count = 0
+    for p in path.iterdir():
+        total_size += p.stat().st_size
+        count += 1
+    return count, total_size

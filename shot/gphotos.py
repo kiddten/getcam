@@ -245,9 +245,12 @@ class GooglePhotosManager:
         root = Path(conf.root_dir) / 'data'
         result = {}
         for cam in conf.cameras.keys():
-            path = root / cam / 'regular' / 'imgs' / day
-            count = await self.album_media_items_count(path)
+            root_path = root / cam / 'regular' / 'imgs'
+            count = await self.album_media_items_count(root_path / day)
             result[cam] = count
+            if conf.cameras[cam].resize:
+                count = await self.album_media_items_count(root_path / 'original' / day)
+                result[f'{cam}-original'] = count
         return result
 
     async def album_media_items_count(self, name):
