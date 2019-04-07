@@ -165,6 +165,9 @@ class GooglePhotosManager:
             'newMediaItems': new_media_items,
             'albumId': album
         }
+        if empty_counter == len(new_media_items):
+            logger.warning(f'There are no new items for {album}')
+            return
         response = await self.media_items_batch_create(data)
         logger.success(f'Images count: {len(new_media_items)} successfully added to album {album}')
         for item in response['newMediaItemResults']:

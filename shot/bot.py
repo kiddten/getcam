@@ -333,6 +333,11 @@ class CamBot:
         day = match.group(1)
         logger.info(f'Going to full check for {day}')
         for cam in conf.cameras_list:
-            await self.agent.check_album(cam, day)
+            try:
+                await self.agent.check_album(cam, day)
+            except Exception:
+                logger.exception(f'Error during check and sync {cam.name} -- {day}')
+                await chat.send_text(f'Error {cam.name} -- {day}')
+                continue
             await chat.send_text(f'Finished with {cam.name} -- {day}')
         logger.info(f'Finished full check for {day}')
