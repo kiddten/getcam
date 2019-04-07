@@ -133,6 +133,8 @@ class GooglePhotosManager:
                 except asyncio.TimeoutError:
                     logger.warning(f'Timed out error during handling batch for {cam}')
                     return
+                except Exception:
+                    logger.exception('Unhandled exception during gphotos queue step')
                 logger.success(f'Finished with batch for {cam}')
                 for _ in range(len(photos)):
                     self.queue.task_done()
@@ -163,8 +165,7 @@ class GooglePhotosManager:
             'newMediaItems': new_media_items,
             'albumId': album
         }
-        # TODO add retry when aborted
-        response = await self.client.as_user(self.photos.mediaItems.batchCreate(json=data))
+        response = await self.media_items_batch_create(data)
         logger.success(f'Images count: {len(new_media_items)} successfully added to album {album}')
         for item in response['newMediaItemResults']:
             status = item['status']['message']
