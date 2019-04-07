@@ -97,16 +97,23 @@ class GooglePhotosManager:
         await self.queue.put(image)
 
     async def consume(self):
-        while not self._stopped.is_set():
-            logger.info('Consuming item..')
+        async def step():
             item = await self.queue.get()
             try:
-                with async_timeout.timeout(conf.google_photos.raw_upload_timeout):
+                async with async_timeout.timeout(conf.google_photos.raw_upload_timeout):
                     await self.upload_image_item(item)
             except asyncio.TimeoutError:
                 logger.warning(f'Timed out error during upload {item.path}')
             self.items[item.cam.name].append(item)
             await self.handle_queue_body()
+
+        while not self._stopped.is_set():
+            logger.info('Consuming item..')
+            try:
+                async with async_timeout.timeout(60 * 5):
+                    await step()
+            except asyncio.TimeoutError:
+                logger.exception('Queue get step body hangs')
 
     async def upload_image_item(self, item: ImageItem):
         item.token = await self.raw_upload(item.path)
@@ -121,7 +128,7 @@ class GooglePhotosManager:
             if len(photos) >= conf.google_photos.album_batch_size or (shutdown and len(photos) > 0):
                 logger.info(f'Going to handle batch for {cam}')
                 try:
-                    with async_timeout.timeout(conf.google_photos.handle_album_timeout):
+                    async with async_timeout.timeout(conf.google_photos.handle_album_timeout):
                         await self.handle_album(photos)
                 except asyncio.TimeoutError:
                     logger.warning(f'Timed out error during handling batch for {cam}')
@@ -134,8 +141,10 @@ class GooglePhotosManager:
     async def handle_album(self, photos: List[ImageItem]):
         album_name = get_album_name(photos[0].path.parent)
         album_id = await self.create_or_retrieve_album(album_name)
+        logger.info(f'Going to upload items to album {album_id}')
         await self.batch_upload_album(album_id, photos)
         if photos[0].cam.resize:
+            logger.info(f'Going to upload resized items to album {album_id}')
             album_name = get_album_name(photos[0].original_path.parent)
             album_id = await self.create_or_retrieve_album(album_name)
             await self.batch_upload_album(album_id, photos, token_get='original_token')
