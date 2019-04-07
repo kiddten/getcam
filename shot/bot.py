@@ -123,6 +123,7 @@ class CamBot:
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
+        self._bot.add_command(r'/stats (.+)', self.stats_command)
         self._bot.add_command(r'/stats', self.stats_command)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_callback(r'regular (.+)', regular)
@@ -290,7 +291,12 @@ class CamBot:
 
     async def stats_command(self, chat: Chat, match):
         try:
-            markdown_result = await self.stats_handler(pendulum.today())
+            day = pendulum.from_format(match.group(1), 'DD_MM_YYYY')
+        except IndexError:
+            day = pendulum.today()
+        logger.info(f'Getting stats info for {day}')
+        try:
+            markdown_result = await self.stats_handler(day)
         except Exception:
             await chat.send_text('Error during request stats')
             return
