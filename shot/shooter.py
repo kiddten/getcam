@@ -241,7 +241,7 @@ def stats(day=None):
         total += total_size
         if conf.cameras[cam].resize:
             original_count, original_total_size = get_count_and_size(root_path / 'original' / day)
-            result['cameras'][f'{cam}-original'] = {'size': original_count, 'count': original_total_size}
+            result['cameras'][f'{cam}-original'] = {'size': original_total_size, 'count': original_count}
             total += original_total_size
     result['total'] = total
     return result

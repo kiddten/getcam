@@ -290,10 +290,18 @@ class GooglePhotosManager:
                 next_page = None
         return items
 
-    async def check_album(self, cam, day):
+    async def check_album(self, cam: 'conf.Cam', day):
         root = Path(conf.root_dir) / 'data'
-        path = root / cam.name / 'regular' / 'imgs' / day
+        path_cam = root / cam.name / 'regular' / 'imgs'
+        path = path_cam / day
         logger.info(f'Checking album {path}')
+        await self._check_album(path, cam)
+        if cam.resize:
+            path = path_cam / 'original' / day
+            logger.info(f'Checking album {path}')
+            await self._check_album(path, cam)
+
+    async def _check_album(self, path, cam):
         album_name = get_album_name(path)
         album_id = await self.create_or_retrieve_album(album_name)
         album_items = await self.album_info(album_id)
