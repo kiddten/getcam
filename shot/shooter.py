@@ -256,3 +256,24 @@ def get_count_and_size(path: Path):
         total_size += p.stat().st_size
         count += 1
     return count, total_size
+
+
+def clear_cam_storage(day, cam):
+    if not cam.clear:
+        return
+    root = Path(conf.root_dir) / 'data'
+    root_path = root / cam.name / 'regular' / 'imgs'
+    path = root_path / day
+    logger.info(f'Clearing {path}')
+    clear_path(path)
+    if cam.resize:
+        logger.info(f'Clearing {path}')
+        path = root_path / 'original' / day
+        clear_path(path)
+
+
+def clear_path(path: Path):
+    if not path.exists():
+        return
+    for p in path.iterdir():
+        p.unlink()

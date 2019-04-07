@@ -16,7 +16,7 @@ from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
 from shot.model import Admin, Channel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import CamHandler, make_movie, make_weekly_movie, stats
+from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
 
 if TYPE_CHECKING:
@@ -120,6 +120,7 @@ class CamBot:
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
         self._bot.add_command(r'/check (.+) (.+)', self.check_album)
         self._bot.add_command(r'/full_check (.+)', self.full_check)
+        self._bot.add_command(r'/clear (.+)', self.clear_command)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/menu', self.menu)
@@ -341,3 +342,20 @@ class CamBot:
                 continue
             await chat.send_text(f'Finished with {cam.name} -- {day}')
         logger.info(f'Finished full check for {day}')
+
+    async def clear_command(self, chat, match):
+        day = match.group(1)
+        logger.info(f'Going to clear for {day}')
+        loop = asyncio.get_event_loop()
+        for cam in conf.cameras_list:
+            if not cam.clear:
+                logger.info(f'Clearing disabled for {cam.name}')
+                continue
+            try:
+                await loop.run_in_executor(None, lambda: clear_cam_storage(day, cam))
+            except Exception:
+                logger.exception(f'Error during clear {cam.name} -- {day}')
+                await chat.send_text(f'Error {cam.name} -- {day}')
+                continue
+            await chat.send_text(f'Finished with {cam.name} -- {day}')
+        logger.info(f'Finished clear for {day}')

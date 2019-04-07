@@ -45,6 +45,7 @@ class Cam:
     interval: int = 60
     update_channel: bool = False
     render_daily: bool = True
+    clear: bool = True
     name: Optional[str] = None
     resize: Optional[str] = None
     description: Optional[str] = None
