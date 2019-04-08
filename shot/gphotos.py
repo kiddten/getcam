@@ -145,6 +145,15 @@ class GooglePhotosManager:
                 photos[:] = []
 
     async def handle_album(self, photos: List[ImageItem]):
+        items = defaultdict(list)
+        for item in photos:
+            items[item.path.parent].append(item)
+        if len(items) > 1:
+            logger.info('Detected image items from several folders')
+        for image_items in items.values():
+            await self._handle_album(image_items)
+
+    async def _handle_album(self, photos: List[ImageItem]):
         album_name = get_album_name(photos[0].path.parent)
         album_id = await self.create_or_retrieve_album(album_name)
         logger.info(f'Going to upload items to album {album_id}')
