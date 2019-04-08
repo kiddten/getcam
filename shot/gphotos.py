@@ -37,6 +37,10 @@ def chunks(l, n):
         yield l[i:i + n]
 
 
+def fatal_code(api_error: aiogoogle.excs.HTTPError):
+    return api_error.res.status_code == 400
+
+
 class _Aiogoogle(Aiogoogle):
 
     async def send(self, *args, **kwargs):
@@ -397,6 +401,6 @@ class GooglePhotosManager:
             logger.critical(f'Detected {empty_counter} empty tokens!')
         logger.info(f'Finished handling batch {len(photo_items)} with album {album_id}')
 
-    @backoff.on_exception(backoff.expo, aiogoogle.excs.HTTPError, max_time=60 * 5)
+    @backoff.on_exception(backoff.expo, aiogoogle.excs.HTTPError, max_time=60 * 5, giveup=fatal_code)
     async def media_items_batch_create(self, data):
         return await self.client.as_user(self.photos.mediaItems.batchCreate(json=data))
