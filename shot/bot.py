@@ -321,6 +321,8 @@ class CamBot:
             markdown_result.append(f'*{d}*: {count} - {media_count} - {size} - {avg} ')
         total = convert_size(result['total'])
         markdown_result.append(f'*total*: {total}')
+        free = convert_size(result['free'])
+        markdown_result.append(f'*free*: {free}')
         return markdown_result
 
     async def check_album(self, chat, match):

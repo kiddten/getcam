@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import hashlib
 import io
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -244,6 +245,7 @@ def stats(day=None):
             result['cameras'][f'{cam}-original'] = {'size': original_total_size, 'count': original_count}
             total += original_total_size
     result['total'] = total
+    result['free'] = get_free_disk_space()
     return result
 
 
@@ -277,3 +279,8 @@ def clear_path(path: Path):
         return
     for p in path.iterdir():
         p.unlink()
+
+
+def get_free_disk_space():
+    statvfs = os.statvfs('/')
+    return statvfs.f_frsize * statvfs.f_bavail
