@@ -181,6 +181,7 @@ class CamBot:
             try:
                 clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
             except Exception:
+                logger.exception('Error during movie request')
                 await self.notify_admins(f'Error during movie request {day} {cam.name}')
                 return
         await self.notify_admins(f'Video ready. Uploading..')
