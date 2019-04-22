@@ -20,7 +20,8 @@ def init_logging():
         'handlers': [
             {
                 'sink': Path(conf.root_dir) / conf.log_file,
-                'level': 'DEBUG'
+                'level': 'DEBUG',
+                'rotation': '1 week'
             },
         ],
     }
