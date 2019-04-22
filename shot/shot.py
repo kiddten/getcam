@@ -74,6 +74,7 @@ def run():
 
     loop.run_until_complete(main())
     loop.run_forever()
+    loop.run_until_complete(bot.notify_admins('Going to restart services..'))
     bot.stop()
     scheduler.shutdown()
     loop.run_until_complete(agent.stop())
