@@ -185,7 +185,7 @@ class CamBot:
                 await self.notify_admins(f'Error during movie request {day} {cam.name}')
                 return
         await self.notify_admins(f'Video ready. Uploading..')
-        with open(clip, 'rb') as clip:
+        with open(clip.path, 'rb') as clip:
             await chat.send_video(clip)
 
     async def daily_movie_group(self):

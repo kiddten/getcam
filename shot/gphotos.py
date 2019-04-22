@@ -118,6 +118,8 @@ class GooglePhotosManager:
                     await step()
             except asyncio.TimeoutError:
                 logger.exception('Queue get step body hangs')
+            except Exception:
+                logger.exception('Unhandled exception during gphotos consume step')
 
     async def upload_image_item(self, item: ImageItem):
         item.token = await self.raw_upload(item.path)
