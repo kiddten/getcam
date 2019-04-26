@@ -10,7 +10,7 @@ import pendulum
 from aiotg import Bot, Chat
 from loguru import logger
 
-from shot import conf
+from shot import conf, vkmanager
 from shot.conf.model import Cam
 from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
@@ -108,16 +108,18 @@ async def reg(chat: Chat, match):
 
 class CamBot:
 
-    def __init__(self, agent: 'gphotos.GooglePhotosManager'):
+    def __init__(self, agent: 'gphotos.GooglePhotosManager', manager: vkmanager.VKManager):
         self._bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
         self.session = self._bot.session
         self.loop = self._bot.loop
         self.menu_markup = Menu()
         self.init_handlers()
         self.agent = agent
+        self.vk_manager = manager
 
     def init_handlers(self):
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
+        self._bot.add_command(r'/push_vk (.+) (.+)', self.push_vk)
         self._bot.add_command(r'/check (.+) (.+)', self.check_album)
         self._bot.add_command(r'/full_check (.+)', self.full_check)
         self._bot.add_command(r'/clear (.+)', self.clear_command)
@@ -171,11 +173,36 @@ class CamBot:
                 await send_video(Chat(self._bot, channel.chat_id), clip)
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
 
-    async def mov(self, chat, match):
-        cam = await get_cam(match.group(2), chat)
+    async def push_vk(self, chat, match):
+        cam = await get_cam(match.group(1), chat)
         if not cam:
             return
-        day = match.group(1)
+        day = match.group(2)
+        path = Path(conf.root_dir) / 'data' / cam.name / 'regular' / 'clips' / f'{day}.mp4'
+        if not path.exists():
+            await chat.send_text('Movie file does not exist!')
+            return
+        try:
+            await self.vk_manager.new_post(cam.name, str(path), day.replace('_', ' '), day.replace('_', '/'))
+        except vkmanager.VKManagerError as exc:
+            logger.exception('Error during pushing video to vk')
+            await chat.send_text(exc.detail)
+        except Exception:
+            logger.exception('Unhandled exception during pushing video to vk')
+            await chat.send_text('Unhandled error!')
+        await chat.send_text('Movie successfully published')
+
+    async def mov(self, chat, match):
+        """
+        Make movie for specified cam and day. Example: /mov favcam 25_04_2019
+        :param chat:
+        :param match:
+        :return:
+        """
+        cam = await get_cam(match.group(1), chat)
+        if not cam:
+            return
+        day = match.group(2)
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor() as pool:
             try:

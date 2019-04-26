@@ -7,6 +7,7 @@ log_file: str
 cameras: Dict[str, Cam]
 debug: bool
 db_uri: str
+vk_host: str
 stdout_log: Optional[bool] = False
 cameras_list: Optional[List[Cam]] = None
 tele_proxy: Optional[str] = None

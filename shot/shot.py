@@ -13,6 +13,7 @@ from shot import conf
 from shot.bot import CamBot
 from shot.gphotos import GooglePhotosManager
 from shot.shooter import CamHandler
+from shot.vkmanager import VKManager
 
 
 def init_logging():
@@ -53,12 +54,14 @@ def run():
         loop.add_signal_handler(getattr(signal, sig_name), shutdown_by_signal, sig_name)
 
     agent = GooglePhotosManager()
-    bot = CamBot(agent=agent)
+    vk_manager = VKManager()
+    bot = CamBot(agent=agent, manager=vk_manager)
     scheduler = AsyncIOScheduler()
     handlers = [CamHandler(cam, bot.session, agent) for cam in conf.cameras_list]
 
     async def main():
         await agent.start()
+        await vk_manager.start()
         scheduler.start()
         for handler in handlers:
             scheduler.add_job(
