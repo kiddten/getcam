@@ -41,7 +41,7 @@ def init_logging():
     logging.getLogger('backoff').setLevel(logging.DEBUG)
 
 
-async def mem_trace(top=10):
+async def mem_trace(top=15):
     start = tracemalloc.take_snapshot()
     prev = start
     while True:
@@ -50,7 +50,7 @@ async def mem_trace(top=10):
         result = '\n'.join(str(stat) for stat in top_stats[:top])
         logger.info(f'Top {top} memory usage diff\n{result}')
         prev = current
-        await asyncio.sleep(60)
+        await asyncio.sleep(5 * 60)
 
 
 def run():
