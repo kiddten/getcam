@@ -48,6 +48,8 @@ async def mem_trace(top=15):
         current = tracemalloc.take_snapshot()
         top_stats = current.compare_to(prev, 'lineno')
         result = '\n'.join(str(stat) for stat in top_stats[:top])
+        total = sum(stat.size for stat in top_stats)
+        result = f'{result}\nTotal usage: {total / 1024} KB'
         logger.info(f'Top {top} memory usage diff\n{result}')
         prev = current
         await asyncio.sleep(5 * 60)
