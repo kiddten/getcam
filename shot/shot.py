@@ -3,6 +3,7 @@ import datetime
 import logging
 import signal
 import sys
+import tracemalloc
 from asyncio.runners import _cancel_all_tasks
 from pathlib import Path
 
@@ -40,7 +41,21 @@ def init_logging():
     logging.getLogger('backoff').setLevel(logging.DEBUG)
 
 
+async def mem_trace(top=10):
+    start = tracemalloc.take_snapshot()
+    prev = start
+    while True:
+        current = tracemalloc.take_snapshot()
+        top_stats = current.compare_to(prev, 'lineno')
+        result = '\n'.join(str(stat) for stat in top_stats[:top])
+        logger.info(f'Top {top} memory usage diff\n{result}')
+        prev = current
+        await asyncio.sleep(60)
+
+
 def run():
+    tracemalloc.start(25)
+
     def shutdown_by_signal(sig):
         logger.info(f'Got {sig} signal. Shutting down..')
         loop.stop()
@@ -72,6 +87,7 @@ def run():
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
+        asyncio.create_task(mem_trace())
         asyncio.create_task(bot.loop())
         asyncio.create_task(agent.loop())
         await bot.notify_admins('Ready! Use /menu, /stats')
