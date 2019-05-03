@@ -86,7 +86,8 @@ def run():
                 next_run_time=datetime.datetime.now()
             )
         scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
-        scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
+        # TODO REVERT
+        # scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
         asyncio.create_task(mem_trace())

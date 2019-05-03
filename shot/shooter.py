@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import datetime
 import hashlib
 import io
@@ -25,6 +26,10 @@ if TYPE_CHECKING:
 logger.add(Path(conf.root_dir) / conf.log_file)
 
 
+class GrayCheckError(Exception):
+    pass
+
+
 @dataclass
 class Movie:
     height: int
@@ -38,8 +43,14 @@ class ImageItem:
     cam: Cam
     path: Path
     token: Optional[str] = None
-    original_path: Optional[str] = None
+    original_path: Optional[Path] = None
     original_token: Optional[str] = None
+
+    def clear(self):
+        logger.info(f'Remove {self.path}')
+        self.path.unlink()
+        if self.original_path:
+            self.original_path.unlink()
 
 
 @dataclass
@@ -49,6 +60,7 @@ class CamHandler:
     agent: Optional['gphotos.GooglePhotosManager'] = None
     previous_image: Optional[str] = None
     path: Optional[Path] = None
+    executor: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor()
 
     async def get_img(self, regular=True):
         logger.info(f'Img handler: {self.cam.name}')
@@ -114,10 +126,31 @@ class CamHandler:
         await loop.run_in_executor(None, lambda: resize_img(data, size, self.path))
         return ImageItem(self.cam, self.path, original_path=original)
 
+    async def single_image_gray_check(self, item: ImageItem):
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: self._single_image_gray_check(item.path))
+
+    @staticmethod
+    def _single_image_gray_check(path):
+        logger.debug(f'Gray check {path}')
+        try:
+            image = imageio.imread(path)
+        except Exception:
+            logger.exception(f'Can not read file {path}')
+            raise GrayCheckError
+        if len(image.shape) < 3:
+            convert_gray_to_rgb(path)
+        return path
+
     async def get_img_and_sync(self, regular=True):
         image = await self.get_img(regular)
         if not image:
             return
+        try:
+            await self.single_image_gray_check(image)
+        except GrayCheckError:
+            logger.exception('Remove file due to check error')
+            image.clear()
         try:
             await self.agent.produce(image)
         except Exception:
@@ -180,7 +213,8 @@ def make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
     root = Path(conf.root_dir) / 'data' / cam.name
     path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
-    sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()), executor)
+    # sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()), executor)
+    sequence = sorted(str(p) for p in path.iterdir())
     txt_clip = make_txt_movie(sequence, cam.fps, executor=executor)
     logger.info(f'Composing clip for {path}:{day}')
     image_clip = ImageSequenceClip(sequence, fps=cam.fps)
