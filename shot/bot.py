@@ -14,7 +14,7 @@ from shot import conf, vkmanager
 from shot.conf.model import Cam
 from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
-from shot.model import Admin, Channel, db
+from shot.model import Admin, Channel, PhotoChannel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
@@ -125,6 +125,7 @@ class CamBot:
         self._bot.add_command(r'/clear (.+)', self.clear_command)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
+        self._bot.add_command(r'/photo_reg', self.reg_photo_channel)
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_command(r'/stats (.+)', self.stats_command)
@@ -137,9 +138,11 @@ class CamBot:
         self._bot.add_callback(r'back', self.back)
         self._bot.add_callback(r'img (.+)', self.img_callback)
         self._bot.add_callback(r'choose_cam (.+)', self.choose_cam_callback)
+        self._bot.add_callback(r'choose_photo_cam (.+)', self.choose_photo_cam_callback)
         self._bot.add_callback(r'sync (.+)', self.sync_gphotos)
         self._bot.add_callback(r'gsnc (.+)', self.run_sync_gphotos)
         self._bot.add_callback(r'remove (.+)', self.remove_folder)
+        self._bot.add_callback(r'post (.+) (.+)', self.post_photo)
         self._bot.callback(unhandled_callbacks)
 
     def stop(self):
@@ -236,8 +239,10 @@ class CamBot:
             await chat.send_text(f'Error during image request for {cam.name}')
             return
         path = image.original_path if cam.resize else image.path
+        markup = Markup([[InlineKeyboardButton(text='post', callback_data=f'post {cam.name} {path.name}')]])
+        logger.critical(markup.to_json())
         with open(path, 'rb') as image:
-            await chat.send_photo(image)
+            await chat.send_photo(image, reply_markup=markup.to_json())
 
     async def img_callback(self, chat, cq, match):
         await cq.answer()
@@ -256,6 +261,16 @@ class CamBot:
         await chat.send_text('Choose cam for channel', reply_markup=CamerasChannel().options.to_json())
 
     @ThreadSwitcherWithDB.optimized
+    async def reg_photo_channel(self, chat: Chat, match):
+        async with db_in_thread():
+            channel = db.query(PhotoChannel).filter(PhotoChannel.chat_id == chat.id).one_or_none()
+        if channel:
+            await self.notify_admins(f'Channel {chat.id} already registered!')
+            return
+        await chat.send_text('Choose cam for photo channel', reply_markup=CamerasChannel(
+            'choose_photo_cam').options.to_json())
+
+    @ThreadSwitcherWithDB.optimized
     async def choose_cam_callback(self, chat, cq, match):
         cam = match.group(1)
         async with db_in_thread():
@@ -264,6 +279,33 @@ class CamBot:
             db.commit()
         await cq.answer(text=f'Added channel for {cam}')
         await self.notify_admins(text=f'Added channel {chat.id} for {cam}')
+
+    @ThreadSwitcherWithDB.optimized
+    async def choose_photo_cam_callback(self, chat, cq, match):
+        cam = match.group(1)
+        async with db_in_thread():
+            channel = PhotoChannel(chat_id=chat.id, cam=cam)
+            db.add(channel)
+            db.commit()
+        await cq.answer(text=f'Added photo channel for {cam}')
+        await self.notify_admins(text=f'Added photo channel {chat.id} for {cam}')
+
+    @ThreadSwitcherWithDB.optimized
+    async def post_photo(self, chat, cq, match):
+        cam = match.group(1)
+        photo = match.group(2)
+        cam = conf.cameras[cam]
+        path = Path(conf.root_dir) / 'data' / cam.name / 'imgs'
+        if cam.resize:
+            path /= 'original'
+        path = path / '_'.join(photo.split('_')[:3]) / photo
+        async with db_in_thread():
+            channels = db.query(PhotoChannel).filter(PhotoChannel.cam == cam.name).all()
+        for channel in channels:
+            chat = Chat(self._bot, channel.chat_id)
+            with open(path, 'rb') as ph:
+                await chat.send_photo(ph)
+        await cq.answer()
 
     @ThreadSwitcherWithDB.optimized
     async def notify_admins(self, text, **options):

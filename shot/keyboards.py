@@ -58,8 +58,19 @@ class Menu:
 @dataclass_json
 @dataclass
 class CamerasChannel:
-    options: Markup = Markup(
-        [[InlineKeyboardButton(text=cam.name, callback_data=f'choose_cam {cam.name}') for cam in conf.cameras_list], ])
+    command: str = 'choose_cam'
+    options: Markup = field(init=False)
+
+    def __post_init__(self):
+        self.options = Markup(
+            [
+                [
+                    InlineKeyboardButton(
+                        text=cam.name, callback_data=f'{self.command} {cam.name}'
+                    ) for cam in conf.cameras_list
+                ],
+            ]
+        )
 
 
 @dataclass_json

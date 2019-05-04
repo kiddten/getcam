@@ -31,5 +31,11 @@ class Channel(BaseModel):
     chat_id = Column(BigInteger, unique=True)
     cam = Column(String(length=64))
 
+
+class PhotoChannel(BaseModel):
+    channel_id = Column(Integer, primary_key=True)
+    chat_id = Column(BigInteger, unique=True)
+    cam = Column(String(length=64))
+
 # db.create_all()
 # TODO automate db.create_all()
