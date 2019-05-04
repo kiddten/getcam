@@ -179,7 +179,7 @@ class CamHandler:
         try:
             await self.single_image_gray_check(image)
         except GrayCheckError:
-            logger.exception('Remove file due to check error')
+            logger.info('Remove file due to check error')
             image.clear()
             return
         try:
