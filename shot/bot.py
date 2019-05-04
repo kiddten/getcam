@@ -157,7 +157,7 @@ class CamBot:
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor() as pool:
             try:
-                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
+                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day))
             except FileNotFoundError as exc:
                 logger.exception(exc)
                 await self.notify_admins(f'File {exc.filename} not found for daily movie {cam.name}: {day}')
@@ -172,6 +172,8 @@ class CamBot:
             for channel in channels:
                 await send_video(Chat(self._bot, channel.chat_id), clip)
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
+        for chat in await self.admin_chats():
+            await send_video(Chat(self._bot, chat.chat_id), clip)
 
     async def push_vk(self, chat, match):
         cam = await get_cam(match.group(1), chat)
@@ -206,7 +208,7 @@ class CamBot:
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor() as pool:
             try:
-                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day, executor=pool))
+                clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day))
             except Exception:
                 logger.exception('Error during movie request')
                 await self.notify_admins(f'Error during movie request {day} {cam.name}')
@@ -269,6 +271,11 @@ class CamBot:
             admins = db.query(Admin).all()
         for admin in admins:
             await self._bot.send_message(admin.chat_id, text, **options)
+
+    @ThreadSwitcherWithDB.optimized
+    async def admin_chats(self):
+        async with db_in_thread():
+            return db.query(Admin).all()
 
     async def menu(self, chat, match):
         await chat.send_text('Menu', reply_markup=self.menu_markup.main_menu.to_json())

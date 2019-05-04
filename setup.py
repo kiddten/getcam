@@ -30,7 +30,7 @@ setup(
     packages=find_packages('.'),
     # py_modules=['shot'],
     entry_points={
-        'console_scripts': ['shot=shot.shot:run'],
+        'console_scripts': ['shot=shot.shot:run', 'movie=shot.movie:main'],
     },
     install_requires=REQUIRED,
     extras_require=EXTRAS,

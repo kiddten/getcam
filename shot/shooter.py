@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import io
 import os
+import subprocess as sp
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -23,11 +24,38 @@ from shot.conf.model import Cam
 if TYPE_CHECKING:
     from shot import gphotos
 
-logger.add(Path(conf.root_dir) / conf.log_file)
+PIPE = -1
+STDOUT = -2
+DEVNULL = -3
 
 
 class GrayCheckError(Exception):
     pass
+
+
+def subprocess_call(cmd):
+    """ Executes the given subprocess command."""
+    join_cmd = ' '.join(cmd)
+    logger.info(f'Running command {join_cmd}')
+
+    popen_params = {
+        "stdout": DEVNULL,
+        "stderr": sp.PIPE,
+        "stdin": DEVNULL
+    }
+
+    proc = sp.Popen(cmd, **popen_params)
+
+    out, err = proc.communicate()  # proc.wait()
+    proc.stderr.close()
+
+    if proc.returncode:
+        logger.warning(f'Command {join_cmd} returned error!')
+        raise IOError(err.decode('utf8'))
+    else:
+        logger.success(f'Successfully finished {join_cmd}')
+
+    del proc
 
 
 @dataclass
@@ -151,6 +179,7 @@ class CamHandler:
         except GrayCheckError:
             logger.exception('Remove file due to check error')
             image.clear()
+            return
         try:
             await self.agent.produce(image)
         except Exception:
@@ -208,7 +237,30 @@ def make_txt_movie(sequence, fps, executor):
     return ImageSequenceClip(txt_clip, fps=fps)
 
 
-def make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
+def make_movie(cam: Cam, day: str, regular: bool = True):
+    regular = 'regular' if regular else ''
+    root = Path(conf.root_dir) / 'data' / cam.name
+    path = root / 'regular' / 'imgs' / day
+    logger.info(f'Running make movie for {path}:{day}')
+    sequence = sorted(str(p) for p in path.iterdir())
+    movie_path = root / regular / 'clips' / f'{day}.mp4'
+    try:
+        subprocess_call(
+            [
+                f'{conf.venv}/movie',
+                '--cam_name',
+                cam.name,
+                '--day',
+                day,
+                '--regular'
+            ])
+    except Exception:
+        logger.exception('Error during subprocess call')
+        raise
+    return Movie(100, 100, movie_path, sequence[seq_middle(sequence)])
+
+
+def _make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
     regular = 'regular' if regular else ''
     root = Path(conf.root_dir) / 'data' / cam.name
     path = root / 'regular' / 'imgs' / day
