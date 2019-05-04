@@ -163,6 +163,8 @@ class CamHandler:
         logger.debug(f'Gray check {path}')
         try:
             image = imageio.imread(path)
+        except ValueError:
+            raise GrayCheckError
         except Exception:
             logger.exception(f'Can not read file {path}')
             raise GrayCheckError
@@ -258,7 +260,11 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     except Exception:
         logger.exception('Error during subprocess call')
         raise
-    return Movie(100, 100, movie_path, sequence[seq_middle(sequence)])
+    cover = sequence[seq_middle(sequence)]
+    cover = Path(cover)
+    with Image.open(cover) as img:
+        width, height = img.size
+    return Movie(height, width, movie_path, cover)
 
 
 def _make_movie(cam: Cam, day: str, regular: bool = True, executor=None):
