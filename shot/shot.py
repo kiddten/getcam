@@ -56,7 +56,7 @@ async def mem_trace(top=15):
 
 
 def run():
-    tracemalloc.start(25)
+    # tracemalloc.start(25)
 
     def shutdown_by_signal(sig):
         logger.info(f'Got {sig} signal. Shutting down..')
@@ -90,7 +90,7 @@ def run():
         # scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
-        asyncio.create_task(mem_trace())
+        # asyncio.create_task(mem_trace())
         asyncio.create_task(bot.loop())
         asyncio.create_task(agent.loop())
         await bot.notify_admins('Ready! Use /menu, /stats')

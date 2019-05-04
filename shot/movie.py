@@ -90,8 +90,8 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     root = Path(conf.root_dir) / 'data' / cam.name
     path = root / 'regular' / 'imgs' / day
     logger.info(f'Running make movie for {path}:{day}')
-    sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()))
-    # sequence = sorted(str(p) for p in path.iterdir())
+    # sequence = check_sequence_for_gray_images(sorted(str(p) for p in path.iterdir()))
+    sequence = sorted(str(p) for p in path.iterdir())
     txt_clip = make_txt_movie(sequence, cam.fps)
     logger.info(f'Composing clip for {path}:{day}')
     image_clip = ImageSequenceClip(sequence, fps=cam.fps)
