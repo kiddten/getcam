@@ -75,7 +75,7 @@ async def today_handler(chat, cam_name):
     today = datetime.datetime.now().strftime('%d_%m_%Y')
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        clip = await loop.run_in_executor(pool, lambda: make_movie(cam, today, regular=False, executor=pool))
+        clip = await loop.run_in_executor(pool, lambda: make_movie(cam, today, regular=False))
     await send_video(chat, clip)
 
 

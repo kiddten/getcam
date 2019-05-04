@@ -244,16 +244,17 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     logger.info(f'Running make movie for {path}:{day}')
     sequence = sorted(str(p) for p in path.iterdir())
     movie_path = root / regular / 'clips' / f'{day}.mp4'
+    cmd = [
+        f'{conf.venv}/movie',
+        '--cam_name',
+        cam.name,
+        '--day',
+        day,
+    ]
+    if regular:
+        cmd.append('--regular')
     try:
-        subprocess_call(
-            [
-                f'{conf.venv}/movie',
-                '--cam_name',
-                cam.name,
-                '--day',
-                day,
-                '--regular'
-            ])
+        subprocess_call(cmd)
     except Exception:
         logger.exception('Error during subprocess call')
         raise
