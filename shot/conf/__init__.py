@@ -7,6 +7,7 @@ log_file: str
 cameras: Dict[str, Cam]
 debug: bool
 db_uri: str
+vk_service: str
 vk_host: str
 venv: str
 stdout_log: Optional[bool] = False

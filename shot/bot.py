@@ -16,7 +16,7 @@ from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
 from shot.model import Admin, Channel, PhotoChannel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats
+from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats, subprocess_call
 from shot.utils import convert_size
 
 if TYPE_CHECKING:
@@ -131,6 +131,8 @@ class CamBot:
         self._bot.add_command(r'/stats (.+)', self.stats_command)
         self._bot.add_command(r'/stats', self.stats_command)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
+        self._bot.add_command(r'/push_on', self.push_vk_on)
+        self._bot.add_command(r'/push_off', self.push_vk_off)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)
@@ -228,6 +230,30 @@ class CamBot:
     async def daily_movie_group_command(self, chat, match):
         logger.info('Forced daily movie group command')
         await self.daily_movie_group()
+
+    async def push_vk_on(self, chat: Chat, match):
+        loop = asyncio.get_event_loop()
+        cmd = f'systemctl --user start {conf.vk_service}'.split()
+        try:
+            await loop.run_in_executor(None, lambda: subprocess_call(cmd))
+        except Exception:
+            msg = 'Error during starting vk push service'
+            logger.exception(msg)
+            await chat.send_text(msg)
+            return
+        await chat.send_text('vk push service started')
+
+    async def push_vk_off(self, chat: Chat, match):
+        loop = asyncio.get_event_loop()
+        cmd = f'systemctl --user stop {conf.vk_service}'.split()
+        try:
+            await loop.run_in_executor(None, lambda: subprocess_call(cmd))
+        except Exception:
+            msg = 'Error during stopping vk push service'
+            logger.exception(msg)
+            await chat.send_text(msg)
+            return
+        await chat.send_text('vk push service stopped')
 
     async def img_all_cams(self, chat: Chat, match):
         for cam in conf.cameras_list:

@@ -7,6 +7,7 @@ User=user
 WantedBy=multi-user.target
 
 # copy that file to /usr/lib/systemd/system/getcam.service
+# /lib/systemd/system on ubuntu
 # systemctl start mymonitoring
 # systemctl status mymonitoring
 # systemctl stop mymonitoring
