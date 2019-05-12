@@ -145,6 +145,8 @@ class CamBot:
         self._bot.add_callback(r'gsnc (.+)', self.run_sync_gphotos)
         self._bot.add_callback(r'remove (.+)', self.remove_folder)
         self._bot.add_callback(r'post (.+) (.+)', self.post_photo)
+        self._bot.add_callback(r'clear_cb (.+)', self.clear_callback)
+        self._bot.add_callback(r'check_cb (.+)', self.full_check_callback)
         self._bot.callback(unhandled_callbacks)
 
     def stop(self):
@@ -266,7 +268,6 @@ class CamBot:
             return
         path = image.original_path if cam.resize else image.path
         markup = Markup([[InlineKeyboardButton(text='post', callback_data=f'post {cam.name} {path.name}')]])
-        logger.critical(markup.to_json())
         with open(path, 'rb') as image:
             await chat.send_photo(image, reply_markup=markup.to_json())
 
@@ -406,7 +407,12 @@ class CamBot:
             logger.exception('Error during stats request')
             await chat.send_text('Error during request stats')
             return
-        await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown')
+        day = day.format('DD_MM_YYYY')
+        markup = Markup([
+            [InlineKeyboardButton(text='check', callback_data=f'check_cb {day}')],
+            [InlineKeyboardButton(text='clear', callback_data=f'clear_cb {day}')]
+        ])
+        await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown', reply_markup=markup.to_json())
 
     async def stats_handler(self, day=None):
         loop = asyncio.get_event_loop()
@@ -435,8 +441,7 @@ class CamBot:
         day = match.group(2)
         await self.agent.check_album(cam, day)
 
-    async def full_check(self, chat, match):
-        day = match.group(1)
+    async def full_check_handler(self, chat, day):
         logger.info(f'Going to full check for {day}')
         for cam in conf.cameras_list:
             try:
@@ -446,10 +451,20 @@ class CamBot:
                 await chat.send_text(f'Error {cam.name} -- {day}')
                 continue
             await chat.send_text(f'Finished with {cam.name} -- {day}')
-        logger.info(f'Finished full check for {day}')
+        msg = f'Finished full check for {day}'
+        logger.info(msg)
+        await chat.send_text(msg)
 
-    async def clear_command(self, chat, match):
+    async def full_check(self, chat, match):
         day = match.group(1)
+        await self.full_check_handler(chat, day)
+
+    async def full_check_callback(self, chat, cq, match):
+        day = match.group(1)
+        await cq.answer(text=f'Running full check for {day}')
+        await self.full_check_handler(chat, day)
+
+    async def clear_handler(self, chat, day):
         logger.info(f'Going to clear for {day}')
         loop = asyncio.get_event_loop()
         for cam in conf.cameras_list:
@@ -464,3 +479,12 @@ class CamBot:
                 continue
             await chat.send_text(f'Finished with {cam.name} -- {day}')
         logger.info(f'Finished clear for {day}')
+
+    async def clear_command(self, chat, match):
+        day = match.group(1)
+        await self.clear_handler(chat, day)
+
+    async def clear_callback(self, chat, cq, match):
+        day = match.group(1)
+        await cq.answer(text=f'Cleaning for {day}')
+        await self.clear_handler(chat, day)
