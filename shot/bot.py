@@ -133,6 +133,8 @@ class CamBot:
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_command(r'/push_on', self.push_vk_on)
         self._bot.add_command(r'/push_off', self.push_vk_off)
+        # TODO remove
+        self._bot.add_command(r'/testds', self.daily_stats)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)
@@ -153,9 +155,8 @@ class CamBot:
         self._bot.stop()
 
     @ThreadSwitcherWithDB.optimized
-    async def daily_stats(self):
-        markdown_result = await self.stats_handler(pendulum.yesterday())
-        await self.notify_admins('\n'.join(markdown_result), parse_mode='Markdown')
+    async def daily_stats(self, chat, match):
+        await self.stats_request(pendulum.yesterday(), self.notify_admins)
 
     @ThreadSwitcherWithDB.optimized
     async def daily_movie(self, cam: Cam):
@@ -400,19 +401,22 @@ class CamBot:
             day = pendulum.from_format(match.group(1), 'DD_MM_YYYY')
         except IndexError:
             day = pendulum.today()
+        await self.stats_request(day, chat.send_text)
+
+    async def stats_request(self, day: pendulum.DateTime, send_command):
         logger.info(f'Getting stats info for {day}')
         try:
             markdown_result = await self.stats_handler(day)
         except Exception:
             logger.exception('Error during stats request')
-            await chat.send_text('Error during request stats')
+            await send_command('Error during request stats')
             return
         day = day.format('DD_MM_YYYY')
         markup = Markup([
             [InlineKeyboardButton(text='check', callback_data=f'check_cb {day}')],
             [InlineKeyboardButton(text='clear', callback_data=f'clear_cb {day}')]
         ])
-        await chat.send_text('\n'.join(markdown_result), parse_mode='Markdown', reply_markup=markup.to_json())
+        await send_command('\n'.join(markdown_result), parse_mode='Markdown', reply_markup=markup.to_json())
 
     async def stats_handler(self, day=None):
         loop = asyncio.get_event_loop()
