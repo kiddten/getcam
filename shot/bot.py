@@ -133,8 +133,6 @@ class CamBot:
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_command(r'/push_on', self.push_vk_on)
         self._bot.add_command(r'/push_off', self.push_vk_off)
-        # TODO remove
-        self._bot.add_command(r'/testds', self.daily2_stats)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)
@@ -156,10 +154,6 @@ class CamBot:
 
     @ThreadSwitcherWithDB.optimized
     async def daily_stats(self):
-        await self.stats_request(pendulum.yesterday(), self.notify_admins)
-
-    @ThreadSwitcherWithDB.optimized
-    async def daily2_stats(self, chat, match):
         await self.stats_request(pendulum.yesterday(), self.notify_admins)
 
     @ThreadSwitcherWithDB.optimized
