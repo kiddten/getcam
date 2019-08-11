@@ -229,6 +229,15 @@ class CamBot:
                 await self.daily_movie(cam)
         await self.daily_stats()
 
+    async def daily_photo_group(self):
+        for cam in conf.cameras_list:
+            image = await CamHandler(cam, self._bot.session).get_img(regular=False)
+            if not image:
+                await self.notify_admins(f'Error during image request for {cam.name}')
+                continue
+            path = image.original_path if cam.resize else image.path
+            await self._post_photo(cam, path)
+
     async def daily_movie_group_command(self, chat, match):
         logger.info('Forced daily movie group command')
         await self.daily_movie_group()
@@ -317,7 +326,6 @@ class CamBot:
         await cq.answer(text=f'Added photo channel for {cam}')
         await self.notify_admins(text=f'Added photo channel {chat.id} for {cam}')
 
-    @ThreadSwitcherWithDB.optimized
     async def post_photo(self, chat, cq, match):
         cam = match.group(1)
         photo = match.group(2)
@@ -326,13 +334,17 @@ class CamBot:
         if cam.resize:
             path /= 'original'
         path = path / '_'.join(photo.split('_')[:3]) / photo
+        await self._post_photo(cam, path)
+        await cq.answer()
+
+    @ThreadSwitcherWithDB.optimized
+    async def _post_photo(self, cam: Cam, photo: Path):
         async with db_in_thread():
             channels = db.query(PhotoChannel).filter(PhotoChannel.cam == cam.name).all()
         for channel in channels:
             chat = Chat(self._bot, channel.chat_id)
-            with open(path, 'rb') as ph:
+            with open(photo, 'rb') as ph:
                 await chat.send_photo(ph)
-        await cq.answer()
 
     @ThreadSwitcherWithDB.optimized
     async def notify_admins(self, text, **options):
