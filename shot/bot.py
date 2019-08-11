@@ -470,9 +470,6 @@ class CamBot:
         logger.info(f'Going to clear for {day}')
         loop = asyncio.get_event_loop()
         for cam in conf.cameras_list:
-            if not cam.clear:
-                logger.info(f'Clearing disabled for {cam.name}')
-                continue
             try:
                 await loop.run_in_executor(None, lambda: clear_cam_storage(day, cam))
             except Exception:

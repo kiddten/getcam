@@ -355,6 +355,7 @@ def get_count_and_size(path: Path):
 
 def clear_cam_storage(day, cam):
     if not cam.clear:
+        logger.info(f'Clearing disabled for {cam.name}')
         return
     root = Path(conf.root_dir) / 'data'
     root_path = root / cam.name / 'regular' / 'imgs'
@@ -365,6 +366,12 @@ def clear_cam_storage(day, cam):
         logger.info(f'Clearing {path}')
         path = root_path / 'original' / day
         clear_path(path)
+    # remove video
+    clip_path = root / cam.name / 'regular' / 'clips' / f'{day}.mp4'
+    try:
+        clip_path.unlink()
+    except FileNotFoundError:
+        logger.warning(f'Clip not found for {day}')
 
 
 def clear_path(path: Path):
