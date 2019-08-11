@@ -227,6 +227,7 @@ class CamBot:
         for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
             if cam.render_daily:
                 await self.daily_movie(cam)
+        await self.daily_stats()
 
     async def daily_movie_group_command(self, chat, match):
         logger.info('Forced daily movie group command')

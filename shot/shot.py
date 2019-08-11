@@ -87,7 +87,6 @@ def run():
             )
         scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
-        scheduler.add_job(bot.daily_stats, 'cron', hour=0, minute=0, second=5)
 
         # asyncio.create_task(mem_trace())
         asyncio.create_task(bot.loop())
