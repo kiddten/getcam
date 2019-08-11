@@ -37,5 +37,14 @@ class PhotoChannel(BaseModel):
     chat_id = Column(BigInteger, unique=True)
     cam = Column(String(length=64))
 
+    @classmethod
+    def cam_channel_map(cls):
+        data = {}
+        for cam in conf.cameras_list:
+            item = db.query(cls).filter(cls.cam == cam.name).one_or_none()
+            if item:
+                data[cam.name] = item.chat_id
+        return data
+
 # db.create_all()
 # TODO automate db.create_all()

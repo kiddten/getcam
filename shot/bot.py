@@ -106,6 +106,14 @@ async def reg(chat: Chat, match):
     await chat.send_text('You are successfully registered!')
 
 
+def db_data():
+    data = PhotoChannel.cam_channel_map()
+    markdown_result = ['photo channels']
+    for cam, chat in data.items():
+        markdown_result.append(f'{cam} — {chat}')
+    return markdown_result
+
+
 class CamBot:
 
     def __init__(self, agent: 'gphotos.GooglePhotosManager', manager: vkmanager.VKManager):
@@ -130,6 +138,7 @@ class CamBot:
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_command(r'/stats (.+)', self.stats_command)
         self._bot.add_command(r'/stats', self.stats_command)
+        self._bot.add_command(r'/dbdata', self.db_data)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_command(r'/push_on', self.push_vk_on)
         self._bot.add_command(r'/push_off', self.push_vk_off)
@@ -414,6 +423,12 @@ class CamBot:
             day = pendulum.today()
         await self.stats_request(day, chat.send_text)
 
+    @ThreadSwitcherWithDB.optimized
+    async def db_data(self, chat: Chat, match):
+        async with db_in_thread():
+            md_data = db_data()
+        await chat.send_text('\n'.join(md_data), parse_mode='Markdown')
+
     async def stats_request(self, day: pendulum.DateTime, send_command):
         logger.info(f'Getting stats info for {day}')
         try:
@@ -463,9 +478,9 @@ class CamBot:
                 await self.agent.check_album(cam, day)
             except Exception:
                 logger.exception(f'Error during check and sync {cam.name} -- {day}')
-                await chat.send_text(f'Error {cam.name} -- {day}')
+                await chat.send_text(f'Error {cam.name} — {day}')
                 continue
-            await chat.send_text(f'Finished with {cam.name} -- {day}')
+            await chat.send_text(f'Finished with {cam.name} — {day}')
         msg = f'Finished full check for {day}'
         logger.info(msg)
         await chat.send_text(msg)
@@ -487,9 +502,9 @@ class CamBot:
                 await loop.run_in_executor(None, lambda: clear_cam_storage(day, cam))
             except Exception:
                 logger.exception(f'Error during clear {cam.name} -- {day}')
-                await chat.send_text(f'Error {cam.name} -- {day}')
+                await chat.send_text(f'Error {cam.name} — {day}')
                 continue
-            await chat.send_text(f'Finished with {cam.name} -- {day}')
+            await chat.send_text(f'Finished with {cam.name} — {day}')
         logger.info(f'Finished clear for {day}')
 
     async def clear_command(self, chat, match):
