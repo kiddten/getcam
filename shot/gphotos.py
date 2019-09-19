@@ -11,7 +11,6 @@ import backoff
 import pendulum
 from aiogoogle import Aiogoogle
 from aiogoogle.sessions.aiohttp_session import AiohttpSession
-from async_lru import alru_cache
 from asyncio_throttle import Throttler
 from loguru import logger
 
@@ -220,7 +219,8 @@ class GooglePhotosManager:
         logger.info(f'Got info about {len(albums)} albums')
         return albums
 
-    @alru_cache(maxsize=48)
+    # TODO check what exactly wrong with cache? Probably session is expired
+    # @alru_cache(maxsize=48)
     async def create_or_retrieve_album(self, name):
         cache_updated = False
         if not self.albums_cache:
