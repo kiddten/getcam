@@ -138,6 +138,7 @@ class CamBot:
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_command(r'/stats (.+)', self.stats_command)
         self._bot.add_command(r'/stats', self.stats_command)
+        self._bot.add_command(r'/lstats', self.lstats_command)
         self._bot.add_command(r'/dbdata', self.db_data)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_command(r'/push_on', self.push_vk_on)
@@ -423,6 +424,13 @@ class CamBot:
             day = pendulum.today()
         await self.stats_request(day, chat.send_text)
 
+    async def lstats_command(self, chat: Chat, match):
+        try:
+            day = pendulum.from_format(match.group(1), 'DD_MM_YYYY')
+        except IndexError:
+            day = pendulum.today()
+        await self.stats_request(day, chat.send_text)
+
     @ThreadSwitcherWithDB.optimized
     async def db_data(self, chat: Chat, match):
         async with db_in_thread():
@@ -432,7 +440,7 @@ class CamBot:
     async def stats_request(self, day: pendulum.DateTime, send_command):
         logger.info(f'Getting stats info for {day}')
         try:
-            markdown_result = await self.stats_handler(day)
+            markdown_result = await self.local_stats_handler(day)
         except Exception:
             logger.exception('Error during stats request')
             await send_command('Error during request stats')
@@ -458,6 +466,24 @@ class CamBot:
                 avg = 0
             media_count = album_stats[d]
             markdown_result.append(f'*{d}*: {count} - {media_count} - {size} - {avg} ')
+        total = convert_size(result['total'])
+        markdown_result.append(f'*total*: {total}')
+        free = convert_size(result['free'])
+        markdown_result.append(f'*free*: {free}')
+        return markdown_result
+
+    async def local_stats_handler(self, day=None):
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, lambda: stats(day))
+        markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
+        for d in result['cameras']:
+            stat = result['cameras'][d]
+            count, size = stat['count'], convert_size(stat['size'])
+            if count:
+                avg = convert_size(stat['size'] / count)
+            else:
+                avg = 0
+            markdown_result.append(f'*{d}*: {count} - {size} - {avg} ')
         total = convert_size(result['total'])
         markdown_result.append(f'*total*: {total}')
         free = convert_size(result['free'])
