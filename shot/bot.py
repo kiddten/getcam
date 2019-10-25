@@ -139,6 +139,7 @@ class CamBot:
         self._bot.add_command(r'/stats (.+)', self.stats_command)
         self._bot.add_command(r'/stats', self.stats_command)
         self._bot.add_command(r'/lstats', self.lstats_command)
+        self._bot.add_command(r'/lstats (.+)', self.lstats_command)
         self._bot.add_command(r'/dbdata', self.db_data)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
         self._bot.add_command(r'/push_on', self.push_vk_on)
