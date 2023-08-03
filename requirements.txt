@@ -10,7 +10,7 @@ async_timeout
 backoff
 dataclasses-json==0.2.2
 imageio==2.4.1
-loguru==0.2.5
+loguru==0.5.3
 moviepy==0.2.3.5
 pendulum==2.0.4
 psycopg2-binary==2.7.7
