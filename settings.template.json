@@ -1,0 +1,15 @@
+{
+    "bot_token": "TOKEN",
+    "log_file": "log.txt",
+    "cameras": {
+        "newcam": {
+            "url": "URL",
+            "offset": 1
+        }
+    },
+    "debug": true,
+    "db_uri": "postgresql://postgres:postgres@postgres:5432/FANCY_DB",
+    "vk_service": "",
+    "vk_host": "",
+    "venv": "venv"
+}
