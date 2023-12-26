@@ -182,10 +182,6 @@ class CamHandler:
             logger.info('Remove file due to check error')
             image.clear()
             return
-        try:
-            await self.agent.produce(image)
-        except Exception:
-            logger.exception(f'Error during image sync {image}')
 
 
 def seq_middle(seq):
@@ -247,7 +243,7 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     sequence = sorted(str(p) for p in path.iterdir())
     movie_path = root / regular / 'clips' / f'{day}.mp4'
     cmd = [
-        f'{conf.venv}/movie',
+        f'poetry run movie',
         '--cam_name',
         cam.name,
         '--day',
