@@ -14,7 +14,6 @@ from shot import conf
 from shot.bot import CamBot
 from shot.gphotos import GooglePhotosManager
 from shot.shooter import CamHandler
-from shot.vkmanager import VKManager
 
 
 def init_logging():
@@ -70,28 +69,22 @@ def run():
     for sig_name in 'SIGINT', 'SIGTERM':
         loop.add_signal_handler(getattr(signal, sig_name), shutdown_by_signal, sig_name)
 
-    agent = GooglePhotosManager()
-    vk_manager = VKManager()
-    bot = CamBot(agent=agent, manager=vk_manager)
+    bot = CamBot()
     scheduler = AsyncIOScheduler()
-    handlers = [CamHandler(cam, bot.session, agent) for cam in conf.cameras_list]
+    handlers = [CamHandler(cam, bot.session, None) for cam in conf.cameras_list]
 
     async def main():
-        await agent.start()
-        await vk_manager.start()
         scheduler.start()
         for handler in handlers:
             scheduler.add_job(
                 handler.get_img_and_sync, 'interval', seconds=handler.cam.interval,
                 next_run_time=datetime.datetime.now()
             )
-        scheduler.add_job(agent.refresh_token, 'interval', minutes=30)
         scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
         scheduler.add_job(bot.daily_photo_group, 'cron', hour=10, minute=10)
 
         # asyncio.create_task(mem_trace())
         asyncio.create_task(bot.loop())
-        asyncio.create_task(agent.loop())
         await bot.notify_admins('Ready! Use /menu, /stats')
 
     loop.run_until_complete(main())
@@ -99,7 +92,6 @@ def run():
     loop.run_until_complete(bot.notify_admins('Going to restart services..'))
     bot.stop()
     scheduler.shutdown()
-    loop.run_until_complete(agent.stop())
     _cancel_all_tasks(loop)
     loop.run_until_complete(loop.shutdown_asyncgens())
     logger.success('Service has been stopped')

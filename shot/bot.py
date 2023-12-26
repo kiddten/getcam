@@ -10,7 +10,7 @@ import pendulum
 from aiotg import Bot, Chat
 from loguru import logger
 
-from shot import conf, vkmanager
+from shot import conf
 from shot.conf.model import Cam
 from shot.gphotos import GooglePhotosManager
 from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
@@ -116,20 +116,15 @@ def db_data():
 
 class CamBot:
 
-    def __init__(self, agent: 'gphotos.GooglePhotosManager', manager: vkmanager.VKManager):
+    def __init__(self):
         self._bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
         self.session = self._bot.session
         self.loop = self._bot.loop
         self.menu_markup = Menu()
         self.init_handlers()
-        self.agent = agent
-        self.vk_manager = manager
 
     def init_handlers(self):
         self._bot.add_command(r'/mov (.+) (.+)', self.mov)
-        self._bot.add_command(r'/push_vk (.+) (.+)', self.push_vk)
-        self._bot.add_command(r'/check (.+) (.+)', self.check_album)
-        self._bot.add_command(r'/full_check (.+)', self.full_check)
         self._bot.add_command(r'/clear (.+)', self.clear_command)
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
@@ -142,8 +137,6 @@ class CamBot:
         self._bot.add_command(r'/lstats', self.lstats_command)
         self._bot.add_command(r'/dbdata', self.db_data)
         self._bot.add_command(r'/daily', self.daily_movie_group_command)
-        self._bot.add_command(r'/push_on', self.push_vk_on)
-        self._bot.add_command(r'/push_off', self.push_vk_off)
         self._bot.add_callback(r'regular (.+)', regular)
         self._bot.add_callback(r'today (.+)', today)
         self._bot.add_callback(r'weekly (.+)', weekly)
@@ -157,7 +150,6 @@ class CamBot:
         self._bot.add_callback(r'remove (.+)', self.remove_folder)
         self._bot.add_callback(r'post (.+) (.+)', self.post_photo)
         self._bot.add_callback(r'clear_cb (.+)', self.clear_callback)
-        self._bot.add_callback(r'check_cb (.+)', self.full_check_callback)
         self._bot.callback(unhandled_callbacks)
 
     def stop(self):
@@ -191,25 +183,6 @@ class CamBot:
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
         for chat in await self.admin_chats():
             await send_video(Chat(self._bot, chat.chat_id), clip)
-
-    async def push_vk(self, chat, match):
-        cam = await get_cam(match.group(1), chat)
-        if not cam:
-            return
-        day = match.group(2)
-        path = Path(conf.root_dir) / 'data' / cam.name / 'regular' / 'clips' / f'{day}.mp4'
-        if not path.exists():
-            await chat.send_text('Movie file does not exist!')
-            return
-        try:
-            await self.vk_manager.new_post(cam.name, str(path), day.replace('_', ' '), day.replace('_', '/'))
-        except vkmanager.VKManagerError as exc:
-            logger.exception('Error during pushing video to vk')
-            await chat.send_text(exc.detail)
-        except Exception:
-            logger.exception('Unhandled exception during pushing video to vk')
-            await chat.send_text('Unhandled error!')
-        await chat.send_text('Movie successfully published')
 
     async def mov(self, chat, match):
         """
@@ -252,30 +225,6 @@ class CamBot:
     async def daily_movie_group_command(self, chat, match):
         logger.info('Forced daily movie group command')
         await self.daily_movie_group()
-
-    async def push_vk_on(self, chat: Chat, match):
-        loop = asyncio.get_event_loop()
-        cmd = f'systemctl --user start {conf.vk_service}'.split()
-        try:
-            await loop.run_in_executor(None, lambda: subprocess_call(cmd))
-        except Exception:
-            msg = 'Error during starting vk push service'
-            logger.exception(msg)
-            await chat.send_text(msg)
-            return
-        await chat.send_text('vk push service started')
-
-    async def push_vk_off(self, chat: Chat, match):
-        loop = asyncio.get_event_loop()
-        cmd = f'systemctl --user stop {conf.vk_service}'.split()
-        try:
-            await loop.run_in_executor(None, lambda: subprocess_call(cmd))
-        except Exception:
-            msg = 'Error during stopping vk push service'
-            logger.exception(msg)
-            await chat.send_text(msg)
-            return
-        await chat.send_text('vk push service stopped')
 
     async def img_all_cams(self, chat: Chat, match):
         for cam in conf.cameras_list:
@@ -456,7 +405,6 @@ class CamBot:
     async def stats_handler(self, day=None):
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, lambda: stats(day))
-        album_stats = await self.agent.album_stats(day)
         markdown_result = [f'#stats *{day.format("DD/MM/YYYY")}*']
         for d in result['cameras']:
             stat = result['cameras'][d]
@@ -465,8 +413,7 @@ class CamBot:
                 avg = convert_size(stat['size'] / count)
             else:
                 avg = 0
-            media_count = album_stats[d]
-            markdown_result.append(f'*{d}*: {count} - {media_count} - {size} - {avg} ')
+            markdown_result.append(f'*{d}*: {count} - {size} - {avg} ')
         total = convert_size(result['total'])
         markdown_result.append(f'*total*: {total}')
         free = convert_size(result['free'])
@@ -490,36 +437,6 @@ class CamBot:
         free = convert_size(result['free'])
         markdown_result.append(f'*free*: {free}')
         return markdown_result
-
-    async def check_album(self, chat, match):
-        cam = await get_cam(match.group(1), chat)
-        if not cam:
-            return
-        day = match.group(2)
-        await self.agent.check_album(cam, day)
-
-    async def full_check_handler(self, chat, day):
-        logger.info(f'Going to full check for {day}')
-        for cam in conf.cameras_list:
-            try:
-                await self.agent.check_album(cam, day)
-            except Exception:
-                logger.exception(f'Error during check and sync {cam.name} -- {day}')
-                await chat.send_text(f'Error {cam.name} — {day}')
-                continue
-            await chat.send_text(f'Finished with {cam.name} — {day}')
-        msg = f'Finished full check for {day}'
-        logger.info(msg)
-        await chat.send_text(msg)
-
-    async def full_check(self, chat, match):
-        day = match.group(1)
-        await self.full_check_handler(chat, day)
-
-    async def full_check_callback(self, chat, cq, match):
-        day = match.group(1)
-        await cq.answer(text=f'Running full check for {day}')
-        await self.full_check_handler(chat, day)
 
     async def clear_handler(self, chat, day):
         logger.info(f'Going to clear for {day}')
