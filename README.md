@@ -1,5 +1,16 @@
-### Install
+### After updating dependency run
 
 ```bash
- docker-compose up -d --build && docker compose exec getcam alembic upgrade head
+ make poetry-lock
+```
+
+### To build
+```bash
+make build
+```
+
+
+### To run
+```bash
+make run
 ```
