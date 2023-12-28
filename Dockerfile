@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.8 as base
 
 RUN mkdir -p /tmp/distr && \
     cd /tmp/distr && \
@@ -62,8 +62,16 @@ RUN \
 
 WORKDIR /app
 
-#COPY pyproject.toml poetry.lock ./
+FROM base as bump-lock-prepare
 COPY ./pyproject.toml /app/
+RUN poetry lock
+
+FROM scratch AS bump-lock
+COPY --from=bump-lock-prepare /app/poetry.lock .
+
+
+FROM base as build
+COPY pyproject.toml poetry.lock /app/
 
 # Install project dependencies
 RUN poetry version \
