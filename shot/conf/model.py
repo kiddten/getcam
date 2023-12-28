@@ -43,7 +43,7 @@ class Cam:
     offset: int
     fps: int = 25
     interval: int = 60
-    update_channel: bool = False
+    update_channel: bool = True
     render_daily: bool = True
     clear: bool = True
     name: Optional[str] = None
