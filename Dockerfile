@@ -37,45 +37,43 @@ COPY Ubuntu/* /usr/local/share/fonts/
 # Refresh the font cache
 RUN fc-cache -f -v
 
-ENV PYTHONUNBUFFERED=1 \
-    # pip
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PIP_DEFAULT_TIMEOUT=100 \
-    \
-    # Poetry
-    # https://python-poetry.org/docs/configuration/#using-environment-variables
-    POETRY_VERSION=1.7.1 \
-    # make poetry install to this location
-    POETRY_HOME="/opt/poetry" \
-    # do not ask any interactive question
-    POETRY_NO_INTERACTION=1 \
-    # never create virtual environment automaticly, only use env prepared by us
-    POETRY_VIRTUALENVS_CREATE=false \
-    \
-    # this is where our requirements + virtual environment will live
-    VIRTUAL_ENV="/venv"
+ENV \
+  # python:
+  PYTHONFAULTHANDLER=1 \
+  PYTHONUNBUFFERED=1 \
+  PYTHONHASHSEED=random \
+  PYTHONDONTWRITEBYTECODE=1 \
+  # pip:
+  PIP_NO_CACHE_DIR=1 \
+  PIP_DISABLE_PIP_VERSION_CHECK=1 \
+  PIP_DEFAULT_TIMEOUT=100 \
+  PIP_ROOT_USER_ACTION=ignore \
+  # poetry:
+  POETRY_VERSION=1.7.1 \
+  POETRY_NO_INTERACTION=1 \
+  POETRY_VIRTUALENVS_CREATE=false \
+  POETRY_HOME='/usr/local'
 
-# prepend poetry and venv to path
-ENV PATH="$POETRY_HOME/bin:$VIRTUAL_ENV/bin:$PATH"
+RUN \
+  # Installing `poetry` package manager:
+  # https://github.com/python-poetry/poetry
+  curl -sSL 'https://install.python-poetry.org' | python - \
+  && poetry --version
 
-# prepare virtual env
-RUN python -m venv $VIRTUAL_ENV
-
-# working directory and Python path
 WORKDIR /app
-ENV PYTHONPATH="/app:$PYTHONPATH"
 
-RUN --mount=type=cache,target=/root/.cache \
-    curl -sSL https://install.python-poetry.org | python -
-
-# Copy poetry files
 #COPY pyproject.toml poetry.lock ./
-COPY pyproject.toml ./
+COPY ./pyproject.toml /app/
 
 # Install project dependencies
-RUN --mount=type=cache,target=/root/.cache \
-    poetry install --no-root --only main
+RUN poetry version \
+  # Install deps:
+  && poetry run pip install -U pip \
+  && poetry install --no-interaction --no-ansi
 
-COPY . .
+COPY . /app
+
+# https://stackoverflow.com/a/76747791/3990145
+RUN poetry install --no-interaction --no-ansi
 
 CMD ["poetry", "run", "python", "-m", "shot.shot", "run"]
