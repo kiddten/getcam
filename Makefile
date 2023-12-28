@@ -1,5 +1,5 @@
 poetry-lock:
-	DOCKER_BUILDKIT=1 docker build --target bump-lock --output out .
+	DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build --target bump-lock --output out .
 	cp out/poetry.lock poetry.lock
 	rm -rf out
 

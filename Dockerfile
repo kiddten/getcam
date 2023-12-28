@@ -61,6 +61,7 @@ RUN \
   && poetry --version
 
 WORKDIR /app
+ENV TZ="Europe/Moscow"
 
 FROM base as bump-lock-prepare
 COPY ./pyproject.toml /app/
