@@ -37,7 +37,6 @@ class Options:
                     InlineKeyboardButton(text='regular', callback_data=f'regular {self.cam}'),
                     InlineKeyboardButton(text='today', callback_data=f'today {self.cam}'),
                     InlineKeyboardButton(text='weekly', callback_data=f'weekly {self.cam}'),
-                    InlineKeyboardButton(text='gphotos', callback_data=f'sync {self.cam}'),
                 ],
                 [InlineKeyboardButton(text='« Back', callback_data='back')],
             ]

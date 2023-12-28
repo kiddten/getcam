@@ -21,9 +21,6 @@ from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from shot import conf
 from shot.conf.model import Cam
 
-if TYPE_CHECKING:
-    from shot import gphotos
-
 PIPE = -1
 STDOUT = -2
 DEVNULL = -3
@@ -85,7 +82,6 @@ class ImageItem:
 class CamHandler:
     cam: Cam
     session: aiohttp.ClientSession
-    agent: Optional['gphotos.GooglePhotosManager'] = None
     previous_image: Optional[str] = None
     path: Optional[Path] = None
     executor: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor()

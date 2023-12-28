@@ -12,7 +12,6 @@ from loguru import logger
 
 from shot import conf
 from shot.bot import CamBot
-from shot.gphotos import GooglePhotosManager
 from shot.shooter import CamHandler
 
 
