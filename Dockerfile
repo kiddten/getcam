@@ -77,7 +77,7 @@ COPY pyproject.toml poetry.lock /app/
 RUN poetry version \
   # Install deps:
   && poetry run pip install -U pip \
-  && poetry install --no-interaction --no-ansi
+  && poetry install -vvv --no-interaction --no-ansi
 
 COPY . /app
 
