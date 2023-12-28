@@ -20,4 +20,5 @@ stop-hub:
 
 update:
 	git pull
+	docker compose -f docker-compose-dockerhub.yml
 	make stop-hub run-hub
