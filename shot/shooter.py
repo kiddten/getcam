@@ -243,7 +243,9 @@ def make_movie(cam: Cam, day: str, regular: bool = True):
     sequence = sorted(str(p) for p in path.iterdir())
     movie_path = root / regular / 'clips' / f'{day}.mp4'
     cmd = [
-        f'poetry run movie',
+        'poetry',
+        'run',
+        'movie',
         '--cam_name',
         cam.name,
         '--day',

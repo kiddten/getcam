@@ -6,7 +6,7 @@ authors = ["Your Name <your@email.com>"]
 #packages = [{include = "shot"}]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
