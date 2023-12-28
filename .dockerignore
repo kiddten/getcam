@@ -75,3 +75,4 @@ docker/docker-compose.prod.yml
 movie.log
 log.txt
 data/
+legacy/
