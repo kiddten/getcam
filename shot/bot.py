@@ -18,6 +18,7 @@ from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats, subprocess_call
 from shot.utils import convert_size
 
+
 async def send_video(chat, clip):
     with open(clip.path, 'rb') as _clip, open(clip.thumb, 'rb') as thumb:
         await chat.send_video(
@@ -124,6 +125,7 @@ class CamBot:
         self._bot.add_command(r'/reg', reg)
         self._bot.add_command(r'/ch', self.reg_channel)
         self._bot.add_command(r'/photo_reg', self.reg_photo_channel)
+        self._bot.add_command(r'/photo_ch_rm', self.remove_photo_channel)
         self._bot.add_command(r'/menu', self.menu)
         self._bot.add_command(r'/all', self.img_all_cams)
         self._bot.add_command(r'/stats (.+)', self.stats_command)
@@ -258,6 +260,19 @@ class CamBot:
             return
         await chat.send_text('Choose cam for photo channel', reply_markup=CamerasChannel(
             'choose_photo_cam').options.to_json())
+
+    @ThreadSwitcherWithDB.optimized
+    async def remove_photo_channel(self, chat: Chat, match):
+        async with db_in_thread():
+            channel = db.query(PhotoChannel).filter(PhotoChannel.chat_id == chat.id).one_or_none()
+        if channel:
+            try:
+                db.delete(channel)
+                db.commit()
+                logger.info('PhotoChannel removed successfully')
+            except Exception:
+                db.rollback()
+                logger.exception('Error removing PhotoChannel')
 
     @ThreadSwitcherWithDB.optimized
     async def choose_cam_callback(self, chat, cq, match):
