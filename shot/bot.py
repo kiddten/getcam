@@ -110,10 +110,40 @@ def db_data():
     return markdown_result
 
 
+class Bot_(Bot):
+
+    async def loop(self):
+        """
+        Return bot's main loop as coroutine. Use with asyncio.
+
+        :Example:
+        >>> loop = asyncio.get_event_loop()
+        >>> loop.run_until_complete(bot.loop())
+        or
+        >>> loop = asyncio.get_event_loop()
+        >>> loop.create_task(bot.loop())
+        """
+        self._running = True
+
+        while self._running:
+            try:
+                updates = await self.api_call(
+                    "getUpdates", offset=self._offset + 1, timeout=self.api_timeout
+                )
+                self._process_updates(updates)
+
+            except Exception as exc:
+                logger.exception(exc)
+                # Optionally, you can add a delay before restarting the loop
+                await asyncio.sleep(1)
+                # Restart the loop
+                continue
+
+
 class CamBot:
 
     def __init__(self):
-        self._bot = Bot(conf.bot_token, proxy=conf.tele_proxy)
+        self._bot = Bot_(conf.bot_token, proxy=conf.tele_proxy)
         self.session = self._bot.session
         self.loop = self._bot.loop
         self.menu_markup = Menu()
