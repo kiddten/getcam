@@ -265,14 +265,14 @@ class CamBot:
     async def remove_photo_channel(self, chat: Chat, match):
         async with db_in_thread():
             channel = db.query(PhotoChannel).filter(PhotoChannel.chat_id == chat.id).one_or_none()
-        if channel:
-            try:
-                db.delete(channel)
-                db.commit()
-                logger.info('PhotoChannel removed successfully')
-            except Exception:
-                db.rollback()
-                logger.exception('Error removing PhotoChannel')
+            if channel:
+                try:
+                    db.delete(channel)
+                    db.commit()
+                    logger.info('PhotoChannel removed successfully')
+                except Exception:
+                    db.rollback()
+                    logger.exception('Error removing PhotoChannel')
 
     @ThreadSwitcherWithDB.optimized
     async def choose_cam_callback(self, chat, cq, match):
