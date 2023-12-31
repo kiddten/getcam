@@ -130,14 +130,16 @@ class CamHandler:
                 'mjpeg',
                 '-',
             ]
-            try:
-                data = subprocess_call(cmd)
-            except Exception:
-                logger.exception('Error during subprocess call')
-            else:
-                image = await self.save_img(data)
-                logger.info(f'Finished with {self.path}')
-                return image
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                try:
+                    data = await loop.run_in_executor(pool, lambda: subprocess_call(cmd))
+                except Exception:
+                    logger.exception('Error during subprocess call')
+                else:
+                    image = await self.save_img(data)
+                    logger.info(f'Finished with {self.path}')
+                    return image
 
     def is_the_same(self, data):
         if not self.previous_image:
