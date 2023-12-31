@@ -89,7 +89,7 @@ async def weekly(chat: Chat, cq, match):
 @ThreadSwitcherWithDB.optimized
 async def reg(chat: Chat, match):
     # TODO return back or add password protect
-    return
+    # return
     async with db_in_thread():
         admin = db.query(Admin).filter(Admin.chat_id == chat.id).one_or_none()
     if admin:
@@ -189,6 +189,7 @@ class CamBot:
         day = datetime.datetime.now() - datetime.timedelta(days=1)
         day = day.strftime('%d_%m_%Y')
         loop = asyncio.get_event_loop()
+        clear_data = False
         with concurrent.futures.ThreadPoolExecutor() as pool:
             try:
                 clip = await loop.run_in_executor(pool, lambda: make_movie(cam, day))
@@ -200,6 +201,8 @@ class CamBot:
                 logger.exception(exc)
                 await self.notify_admins(f'Error during making daily movie for {cam.name}: {day}')
                 return
+            else:
+                clear_data = True
         if cam.update_channel:
             async with db_in_thread():
                 channels = db.query(Channel).filter(Channel.cam == cam.name).all()
@@ -208,6 +211,13 @@ class CamBot:
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
         for chat in await self.admin_chats():
             await send_video(Chat(self._bot, chat.chat_id), clip)
+        if clear_data:
+            try:
+                await loop.run_in_executor(None, lambda: clear_cam_storage(day, cam))
+            except Exception:
+                logger.exception(f'Error during clear {cam.name} -- {day}')
+            else:
+                logger.info(f"Successfully finished cleaning {cam.name} — {day}'")
 
     async def mov(self, chat, match):
         """
@@ -236,7 +246,7 @@ class CamBot:
         for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
             if cam.render_daily:
                 await self.daily_movie(cam)
-        await self.daily_stats()
+        # await self.daily_stats()
 
     async def daily_photo_group(self):
         for cam in conf.cameras_list:

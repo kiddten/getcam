@@ -372,7 +372,7 @@ def get_count_and_size(path: Path):
     return count, total_size
 
 
-def clear_cam_storage(day, cam):
+def clear_cam_storage(day, cam: Cam):
     if not cam.clear:
         logger.info(f'Clearing disabled for {cam.name}')
         return
