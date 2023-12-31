@@ -7,7 +7,7 @@ import os
 import subprocess as sp
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 import aiohttp
 import imageio
@@ -36,7 +36,7 @@ def subprocess_call(cmd):
     logger.info(f'Running command {join_cmd}')
 
     popen_params = {
-        "stdout": DEVNULL,
+        "stdout": sp.PIPE,
         "stderr": sp.PIPE,
         "stdin": DEVNULL
     }
@@ -53,6 +53,7 @@ def subprocess_call(cmd):
         logger.success(f'Successfully finished {join_cmd}')
 
     del proc
+    return out
 
 
 @dataclass
@@ -96,25 +97,47 @@ class CamHandler:
         now = datetime.datetime.now().strftime('%d_%m_%Y_%H-%M-%S')
         self.path = path / f'{now}.jpg'
         logger.info(f'Attempt to get img {self.path}')
-        try:
-            response = await self.session.get(self.cam.url)
-        except Exception:
-            logger.exception(f'Exception during getting img {self.path}')
-            return
-        if response.status != 200:
-            body = await response.read()
-            logger.warning(f'Can not get img {self.path}: response status {response.status} body: {body}')
-            return
-        data = await response.read()
-        if not data:
-            logger.warning(f'Empty file data {self.path}')
-            return
-        if self.is_the_same(data):
-            logger.warning(f'Got the same image again {self.path}')
-            return
-        image = await self.save_img(data)
-        logger.info(f'Finished with {self.path}')
-        return image
+        if not self.cam.url.endswith('m3u8'):
+            try:
+                response = await self.session.get(self.cam.url)
+            except Exception:
+                logger.exception(f'Exception during getting img {self.path}')
+                return
+            if response.status != 200:
+                body = await response.read()
+                logger.warning(f'Can not get img {self.path}: response status {response.status} body: {body}')
+                return
+            data = await response.read()
+            if not data:
+                logger.warning(f'Empty file data {self.path}')
+                return
+            if self.is_the_same(data):
+                logger.warning(f'Got the same image again {self.path}')
+                return
+            image = await self.save_img(data)
+            logger.info(f'Finished with {self.path}')
+            return image
+        else:
+            cmd = [
+                'ffmpeg',
+                '-i',
+                self.cam.url,
+                '-vframes',
+                '1',
+                '-f',
+                'image2pipe',
+                '-c:v',
+                'mjpeg',
+                '-',
+            ]
+            try:
+                data = subprocess_call(cmd)
+            except Exception:
+                logger.exception('Error during subprocess call')
+            else:
+                image = await self.save_img(data)
+                logger.info(f'Finished with {self.path}')
+                return image
 
     def is_the_same(self, data):
         if not self.previous_image:
