@@ -8,6 +8,7 @@ from asyncio.runners import _cancel_all_tasks
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from shot import conf
@@ -72,14 +73,18 @@ def run():
     scheduler = AsyncIOScheduler()
     handlers = [CamHandler(cam, bot.session, None) for cam in conf.cameras_list]
 
+    cron_expression = '0-59/1 5-23 * * *'
+
     async def main():
         scheduler.start()
         for handler in handlers:
             scheduler.add_job(
-                handler.get_img_and_sync, 'interval', seconds=handler.cam.interval,
+                handler.get_img_and_sync,
+                trigger=CronTrigger.from_crontab(cron_expression),
+                seconds=handler.cam.interval,
                 next_run_time=datetime.datetime.now()
             )
-        scheduler.add_job(bot.daily_movie_group, 'cron', hour=0, minute=2)
+        scheduler.add_job(bot.daily_movie_group, 'cron', hour=23, minute=1)
         scheduler.add_job(bot.daily_photo_group, 'cron', hour=10, minute=10)
 
         # asyncio.create_task(mem_trace())

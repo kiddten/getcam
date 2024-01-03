@@ -186,7 +186,7 @@ class CamBot:
 
     @ThreadSwitcherWithDB.optimized
     async def daily_movie(self, cam: Cam):
-        day = datetime.datetime.now() - datetime.timedelta(days=1)
+        day = datetime.datetime.now()
         day = day.strftime('%d_%m_%Y')
         loop = asyncio.get_event_loop()
         clear_data = False
