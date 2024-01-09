@@ -73,7 +73,7 @@ def run():
     scheduler = AsyncIOScheduler()
     handlers = [CamHandler(cam, bot.session, None) for cam in conf.cameras_list]
 
-    cron_expression = '0-59/1 5-23 * * *'
+    cron_expression = '0-59/1 5-22 * * *'
 
     async def main():
         scheduler.start()
