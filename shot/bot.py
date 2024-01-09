@@ -4,18 +4,17 @@ import dataclasses
 import datetime
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pendulum
-from aiotg import Bot, Chat
+from aiotg import Bot, BotApiError, Chat
 from loguru import logger
 
 from shot import conf
 from shot.conf.model import Cam
-from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu, SyncFolders
+from shot.keyboards import CamerasChannel, InlineKeyboardButton, Markup, Menu
 from shot.model import Admin, Channel, PhotoChannel, db
 from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
-from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats, subprocess_call
+from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
 
 
@@ -207,7 +206,12 @@ class CamBot:
             async with db_in_thread():
                 channels = db.query(Channel).filter(Channel.cam == cam.name).all()
             for channel in channels:
-                await send_video(Chat(self._bot, channel.chat_id), clip)
+                try:
+                    await send_video(Chat(self._bot, channel.chat_id), clip)
+                except BotApiError:
+                    await self.notify_admins(f'Error during sending video for {cam.name}: {day}! Seems file is to '
+                                             f'large.')
+                    return
         await self.notify_admins(f'Daily movie for {cam.name}: {day} ready!')
         for chat in await self.admin_chats():
             await send_video(Chat(self._bot, chat.chat_id), clip)
@@ -245,7 +249,12 @@ class CamBot:
     async def daily_movie_group(self):
         for cam in sorted(conf.cameras_list, key=lambda k: k.offset):
             if cam.render_daily:
-                await self.daily_movie(cam)
+                try:
+                    await self.daily_movie(cam)
+                except Exception:
+                    err = f'Error during preparing daily movie for {cam.name}!'
+                    logger.exception(err)
+                    await self.notify_admins(err)
         # await self.daily_stats()
 
     async def daily_photo_group(self):
