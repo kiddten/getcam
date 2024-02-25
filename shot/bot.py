@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pendulum
 from aiotg import Bot, BotApiError, Chat
+from aiotg.bot import RETRY_CODES, RETRY_TIMEOUT
 from loguru import logger
 
 from shot import conf
@@ -17,6 +18,7 @@ from shot.model.helpers import ThreadSwitcherWithDB, db_in_thread
 from shot.shooter import CamHandler, clear_cam_storage, make_movie, make_weekly_movie, stats
 from shot.utils import convert_size
 
+CUSTOM_API_URL = "http://telegram-bot-api:8081"
 
 async def send_video(chat, clip):
     with open(clip.path, 'rb') as _clip, open(clip.thumb, 'rb') as thumb:
@@ -110,6 +112,41 @@ def db_data():
 
 
 class Bot_(Bot):
+
+    async def _api_call(self, method, **params):
+        url = "{0}/bot{1}/{2}".format(CUSTOM_API_URL, self.api_token, method)
+        logger.debug("api_call %s, %s", method, params)
+
+        response = await self.session.post(url, data=params)
+
+        if response.status == 200:
+            return await response.json(loads=self.json_deserialize)
+        elif response.status in RETRY_CODES:
+            logger.info(
+                "Server returned %d, retrying in %d sec.",
+                response.status,
+                RETRY_TIMEOUT,
+            )
+            await response.release()
+            await asyncio.sleep(RETRY_TIMEOUT)
+            return await self.api_call(method, **params)
+        else:
+            if response.headers["content-type"] == "application/json":
+                json_resp = await response.json(loads=self.json_deserialize)
+                err_msg = json_resp["description"]
+            else:
+                err_msg = await response.read()
+            logger.error(err_msg)
+            raise BotApiError(err_msg, response=response)
+
+    def download_file(self, file_path, range=None):
+        """
+        Download a file from Telegram servers
+        """
+        headers = {"range": range} if range else None
+        url = "{0}/file/bot{1}/{2}".format(CUSTOM_API_URL, self.api_token, file_path)
+        return self.session.get(url, headers=headers)
+
 
     async def loop(self):
         """
