@@ -19,3 +19,5 @@ log.txt
 .python-version
 out/
 .DS_Store
+.env
+settings.server.json
