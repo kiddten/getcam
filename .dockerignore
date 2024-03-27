@@ -76,3 +76,6 @@ movie.log
 log.txt
 data/
 legacy/
+
+.git/
+Makefile
