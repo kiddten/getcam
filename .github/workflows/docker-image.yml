@@ -25,6 +25,7 @@ jobs:
           push: true
           target: build
           tags: kiddten/getcam:latest
+          platform: linux/amd64
           cache-from: type=registry,ref=kiddten/getcam:buildcache
           cache-to: |
             type=registry,ref=kiddten/getcam:buildcache,mode=max
