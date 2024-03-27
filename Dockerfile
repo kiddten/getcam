@@ -1,17 +1,11 @@
 FROM python:3.8 as base
 
-# Install curl and dependencies
-RUN apt-get update \
-    && apt-get install -y curl \
-    && apt-get clean \
+RUN apt-get update && add-apt-repository -y ppa:mc3man/trusty-media && apt-get dist-upgrade -y && apt-get install -y \
+    curl \
+    software-properties-common \
+    python3-launchpadlib \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update \
-    && apt-get install -y software-properties-common \
-    && apt-get install -y python3-launchpadlib \
-    && add-apt-repository -y ppa:mc3man/trusty-media \
-    && apt-get dist-upgrade -y \
-    && apt-get install -y ffmpeg
 
 RUN mkdir -p /tmp/distr \
     && cd /tmp/distr \
