@@ -26,5 +26,6 @@ jobs:
           target: build
           tags: kiddten/getcam:latest
           cache-from: type=registry,ref=kiddten/getcam:buildcache
-          cache-to: type=registry,ref=kiddten/getcam:buildcache,mode=max
-          cache-to: type=inline
+          cache-to: |
+            type=registry,ref=kiddten/getcam:buildcache,mode=max
+            type=inline
