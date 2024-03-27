@@ -1,17 +1,5 @@
 FROM python:3.8 as base
 
-RUN mkdir -p /tmp/distr && \
-    cd /tmp/distr && \
-    wget https://download.imagemagick.org/ImageMagick/download/releases/ImageMagick-7.0.11-2.tar.xz && \
-    tar xvf ImageMagick-7.0.11-2.tar.xz && \
-    cd ImageMagick-7.0.11-2 && \
-    ./configure --enable-shared=yes --disable-static --without-perl && \
-    make && \
-    make install && \
-    ldconfig /usr/local/lib && \
-    cd /tmp && \
-    rm -rf distr
-
 # Install curl and dependencies
 RUN apt-get update \
     && apt-get install -y curl \
@@ -24,6 +12,18 @@ RUN apt-get update \
     && add-apt-repository -y ppa:mc3man/trusty-media \
     && apt-get dist-upgrade -y \
     && apt-get install -y ffmpeg
+
+RUN mkdir -p /tmp/distr \
+    && cd /tmp/distr \
+    && wget https://download.imagemagick.org/ImageMagick/download/releases/ImageMagick-7.0.11-2.tar.xz \
+    && tar xvf ImageMagick-7.0.11-2.tar.xz \
+    && cd ImageMagick-7.0.11-2 \
+    && ./configure --enable-shared=yes --disable-static --without-perl \
+    && make \
+    && make install \
+    && ldconfig /usr/local/lib \
+    && cd /tmp \
+    && rm -rf distr
 
 # Install required packages
 RUN apt-get update && apt-get install -y fontconfig
