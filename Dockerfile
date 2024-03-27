@@ -3,7 +3,7 @@ FROM python:3.8 as base
 RUN apt-get update && apt-get install -y \
     curl \
     software-properties-common \
-     python3-launchpadlib \
+    python3-launchpadlib \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
