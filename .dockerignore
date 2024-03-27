@@ -73,7 +73,7 @@ docker/docker-compose.prod.yml
 .import_linter_cache/
 
 movie.log
-log.txt
+log.*
 data/
 legacy/
 
