@@ -27,6 +27,4 @@ jobs:
           tags: kiddten/getcam:latest
           platforms: linux/amd64
           cache-from: type=registry,ref=kiddten/getcam:buildcache
-          cache-to: |
-            type=registry,ref=kiddten/getcam:buildcache,mode=max
-            type=inline
+          cache-to: type=registry,ref=kiddten/getcam:buildcache,mode=max
