@@ -15,7 +15,7 @@ build
 dist
 getcam.egg-info
 
-log.txt
+log.*
 .python-version
 out/
 .DS_Store
