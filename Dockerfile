@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     software-properties-common \
     python3-launchpadlib \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update \
@@ -22,9 +23,6 @@ RUN mkdir -p /tmp/distr \
     && ldconfig /usr/local/lib \
     && cd /tmp \
     && rm -rf distr
-
-# Install required packages
-RUN apt-get update && apt-get install -y fontconfig
 
 # Create a directory in the container to store the fonts
 RUN mkdir -p /usr/local/share/fonts/Ubuntu
