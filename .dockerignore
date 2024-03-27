@@ -78,4 +78,5 @@ data/
 legacy/
 
 .git/
+.github/
 Makefile
