@@ -6,7 +6,7 @@ on:
 
 jobs:
 
-  build linux:
+  build_linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
           platforms: linux/amd64
           cache-from: type=registry,ref=kiddten/getcam:buildcache-amd64
           cache-to: type=registry,ref=kiddten/getcam:buildcache-amd64,mode=max
-  build arm:
+  build_arm:
     runs-on: macos-latest
     steps:
       - name: Checkout
