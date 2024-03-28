@@ -15,7 +15,8 @@ RUN mkdir -p $FONTS_PATH  \
     && wget -q -O $FONTS_PATH/tmp.zip $FONTS_URL  \
     && unzip $FONTS_PATH/tmp.zip -d $FONTS_PATH  \
     && rm $FONTS_PATH/tmp.zip \
-    && fc-cache -f -v
+    && fc-cache -f -v \
+    && sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
 
 ENV \
   # python:
