@@ -1,5 +1,8 @@
 FROM python:3.8 as base
 
+ARG FONTS_PATH=/usr/local/share/fonts/Ubuntu
+ARG FONTS_URL=https://github.com/kiddten/getcam/raw/master/fonts/Ubuntu.zip
+
 RUN apt-get update && apt-get install -y \
     curl \
     software-properties-common \
@@ -8,14 +11,11 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a directory in the container to store the fonts
-RUN mkdir -p /usr/local/share/fonts/Ubuntu
-
-# Copy all font files from the local "Ubuntu" folder to the container
-COPY Ubuntu/* /usr/local/share/fonts/
-
-# Refresh the font cache
-RUN fc-cache -f -v
+RUN mkdir -p $FONTS_PATH  \
+    && wget -q -O $FONTS_PATH/tmp.zip $FONTS_URL  \
+    && unzip $FONTS_PATH/tmp.zip -d $FONTS_PATH  \
+    && rm $FONTS_PATH/tmp.zip \
+    && fc-cache -f -v
 
 ENV \
   # python:
