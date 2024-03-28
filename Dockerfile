@@ -5,12 +5,8 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     python3-launchpadlib \
     fontconfig \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update \
-    && add-apt-repository -y ppa:mc3man/trusty-media \
-    && apt-get dist-upgrade -y \
-    && apt-get install -y ffmpeg
 
 RUN mkdir -p /tmp/distr \
     && cd /tmp/distr \
